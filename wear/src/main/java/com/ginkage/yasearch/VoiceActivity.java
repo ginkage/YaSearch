@@ -1,16 +1,18 @@
 package com.ginkage.yasearch;
 
+import android.graphics.Color;
 import android.os.Bundle;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.BoxInsetLayout;
 import android.view.View;
 import android.widget.TextView;
 
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+
+import ru.yandex.speechkit.SpeechKit;
 
 public class VoiceActivity extends WearableActivity implements VoiceSender.SetupResult {
 
@@ -30,6 +32,9 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         mContainerView = (BoxInsetLayout) findViewById(R.id.container);
         mTextView = (TextView) findViewById(R.id.text);
         mClockView = (TextView) findViewById(R.id.clock);
+
+        SpeechKit.getInstance().configure(getApplicationContext(),
+                "f9c9a742-8c33-4961-9217-f622744b6063");
     }
 
     @Override
@@ -52,14 +57,14 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     private void updateDisplay() {
         if (isAmbient()) {
-            mContainerView.setBackgroundColor(getResources().getColor(android.R.color.black));
-            mTextView.setTextColor(getResources().getColor(android.R.color.white));
+            mContainerView.setBackgroundColor(Color.BLACK);
+            mTextView.setTextColor(Color.WHITE);
             mClockView.setVisibility(View.VISIBLE);
 
             mClockView.setText(AMBIENT_DATE_FORMAT.format(new Date()));
         } else {
             mContainerView.setBackground(null);
-            mTextView.setTextColor(getResources().getColor(android.R.color.black));
+            mTextView.setTextColor(Color.BLACK);
             mClockView.setVisibility(View.GONE);
         }
     }
