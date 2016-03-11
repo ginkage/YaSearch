@@ -9,6 +9,7 @@ import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.BoxInsetLayout;
+import android.view.View;
 import android.widget.TextView;
 
 import java.io.OutputStream;
@@ -25,8 +26,9 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     private static String API_KEY = "f9c9a742-8c33-4961-9217-f622744b6063";
     private static final int REQUEST_PERMISSION_CODE = 1;
 
-    private BoxInsetLayout mContainerView;
     private TextView mTextView;
+    private View mMicView;
+    private boolean mSpotting;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,8 +36,10 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         setContentView(R.layout.activity_voice);
         setAmbientEnabled();
 
-        mContainerView = (BoxInsetLayout) findViewById(R.id.container);
         mTextView = (TextView) findViewById(R.id.bro_common_speech_title);
+        mMicView = (View) findViewById(R.id.bro_common_speech_progress);
+        mMicView.setVisibility(View.GONE);
+        mSpotting = false;
 
         SpeechKit.getInstance().configure(getApplicationContext(), API_KEY);
         PhraseSpotterModel model = new PhraseSpotterModel("phrase-spotter/yandex");
@@ -50,6 +54,10 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     }
 
     private void startPhraseSpotter(boolean request) {
+        if (mSpotting) {
+            return;
+        }
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
                 != PackageManager.PERMISSION_GRANTED) {
             if (request && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -58,7 +66,11 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
             }
         } else {
             Error startResult = PhraseSpotter.start();
-            handleError(startResult);
+            if (startResult.getCode() == Error.ERROR_OK) {
+                mSpotting = true;
+            } else {
+                handleError(startResult);
+            }
         }
     }
 
@@ -111,7 +123,9 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     private void updateDisplay() {
         if (isAmbient()) {
+            PhraseSpotter.stop();
         } else {
+            startPhraseSpotter(false);
         }
     }
 
@@ -123,16 +137,21 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     @Override
     public void onPhraseSpotted(String s, int i) {
         mTextView.setText(getString(R.string.phrase_spotted));
+        mMicView.setVisibility(View.VISIBLE);
     }
 
     @Override
     public void onPhraseSpotterStarted() {
         mTextView.setText(getString(R.string.bro_common_speech_dialog_hint));
+        mMicView.setVisibility(View.GONE);
+        mSpotting = true;
     }
 
     @Override
     public void onPhraseSpotterStopped() {
         mTextView.setText(getString(R.string.bro_common_speech_dialog_ready_button));
+        mMicView.setVisibility(View.GONE);
+        mSpotting = false;
     }
 
     @Override
