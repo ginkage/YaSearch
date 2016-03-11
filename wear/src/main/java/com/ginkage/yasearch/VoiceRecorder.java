@@ -14,6 +14,11 @@ import java.io.OutputStream;
  * The voice recording class. For example purposes only, don't look at it.
  */
 public class VoiceRecorder {
+    public interface RecordingListener {
+        void onStreamClosed();
+        void onError();
+    }
+
     private static final String TAG = "VoiceRecorder";
     private static final int RECORDER_SAMPLE_RATE = 16000;
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
@@ -28,7 +33,8 @@ public class VoiceRecorder {
     private int bytesRead;
     private NoiseSuppressor noiseSuppressor = null;
 
-    public void startRecording(final OutputStream stream) {
+    public void startRecording(
+            final OutputStream stream, final RecordingListener recordingListener) {
         Log.d(TAG, "recording started...");
         recorder = new AudioRecord(
                 AUDIO_SOURCE,
@@ -64,19 +70,20 @@ public class VoiceRecorder {
                                 stream.write(dataBuffer, 0, read);
                                 bytesRead += read;
                             } catch (IOException e) {
-                                stopRecording();
+                                stopRecording(recordingListener);
                                 break;
                             }
                         }
                         if (bytesRead > MAX_LEN) {
                             Log.d(TAG, "buffer size limit " + bytesRead + " reached.");
-                            stopRecording();
+                            stopRecording(recordingListener);
                             break;
                         }
                     }
                 } finally {
                     try {
                         stream.close();
+                        recordingListener.onStreamClosed();
                     } catch (IOException e) {
                         // ignored;
                     }
@@ -85,7 +92,7 @@ public class VoiceRecorder {
         }, "AudioRecorder Thread").start();
     }
 
-    public void stopRecording() {
+    public void stopRecording(RecordingListener recordingListener) {
         Log.d(TAG, "recording ended.");
         isRecording = false;
         bytesRead = 0;
@@ -105,5 +112,6 @@ public class VoiceRecorder {
                 t.printStackTrace();
             }
         }
+        recordingListener.onError();
     }
 }

@@ -2,13 +2,11 @@ package com.ginkage.yasearch;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.wearable.activity.WearableActivity;
-import android.support.wearable.view.BoxInsetLayout;
 import android.view.View;
 import android.widget.TextView;
 
@@ -20,8 +18,8 @@ import ru.yandex.speechkit.PhraseSpotterListener;
 import ru.yandex.speechkit.PhraseSpotterModel;
 import ru.yandex.speechkit.SpeechKit;
 
-public class VoiceActivity extends WearableActivity implements VoiceSender.SetupResult,
-        PhraseSpotterListener {
+public class VoiceActivity extends WearableActivity implements VoiceSender.SetupResultListener,
+        PhraseSpotterListener, VoiceRecorder.RecordingListener {
 
     private static String API_KEY = "f9c9a742-8c33-4961-9217-f622744b6063";
     private static final int REQUEST_PERMISSION_CODE = 1;
@@ -134,7 +132,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         mTextView.setText(message);
         if (stream != null) {
             VoiceRecorder recorder = new VoiceRecorder();
-            recorder.startRecording(stream);
+            recorder.startRecording(stream, this);
         }
     }
 
@@ -142,6 +140,9 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     public void onPhraseSpotted(String s, int i) {
         mTextView.setText(getString(R.string.phrase_spotted));
         mMicView.setVisibility(View.VISIBLE);
+        PhraseSpotter.stop();
+        VoiceSender sender = new VoiceSender(this, this);
+        sender.setupVoiceChannel();
     }
 
     @Override
@@ -153,13 +154,23 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     @Override
     public void onPhraseSpotterStopped() {
-        mTextView.setText(getString(R.string.bro_common_speech_dialog_ready_button));
-        mMicView.setVisibility(View.GONE);
         mSpotting = false;
     }
 
     @Override
     public void onPhraseSpotterError(Error error) {
         handleError(error);
+    }
+
+    @Override
+    public void onStreamClosed() {
+        mTextView.setText(getString(R.string.bro_common_speech_dialog_ready_button));
+        mMicView.setVisibility(View.GONE);
+    }
+
+    @Override
+    public void onError() {
+        mTextView.setText(getString(R.string.spotter_error) + "Couldn't start recording");
+        mMicView.setVisibility(View.GONE);
     }
 }

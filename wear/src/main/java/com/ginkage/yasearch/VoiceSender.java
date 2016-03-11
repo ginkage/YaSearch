@@ -15,12 +15,11 @@ import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.Wearable;
 
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.util.Set;
 
 public class VoiceSender {
-    public interface SetupResult {
+    public interface SetupResultListener {
         /**
          * Result of the channel opening attempt.
          * @param stream The stream to write to, or {@code null} if there was an error.
@@ -52,16 +51,16 @@ public class VoiceSender {
     private String mYaskNodeId;
 
     private final GoogleApiClient mGoogleApiClient;
-    private final SetupResult mSetupResult;
+    private final SetupResultListener mSetupResult;
 
-    public VoiceSender(Context context, SetupResult setupResult) {
+    public VoiceSender(Context context, SetupResultListener setupResult) {
         mGoogleApiClient = new GoogleApiClient.Builder(context)
                 .addApi(Wearable.API)
                 .build();
         mSetupResult = setupResult;
     }
 
-    private void setupVoiceChannel() {
+    public void setupVoiceChannel() {
         new AsyncTask<Void, Void, Void>() {
             @Override
             protected Void doInBackground(Void... params) {
