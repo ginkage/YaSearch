@@ -37,7 +37,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         setAmbientEnabled();
 
         mTextView = (TextView) findViewById(R.id.bro_common_speech_title);
-        mMicView = (View) findViewById(R.id.bro_common_speech_progress);
+        mMicView = findViewById(R.id.bro_common_speech_progress);
         mMicView.setVisibility(View.GONE);
         mSpotting = false;
 
@@ -132,6 +132,10 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     @Override
     public void onResult(OutputStream stream, String message) {
         mTextView.setText(message);
+        if (stream != null) {
+            VoiceRecorder recorder = new VoiceRecorder();
+            recorder.startRecording(stream);
+        }
     }
 
     @Override
