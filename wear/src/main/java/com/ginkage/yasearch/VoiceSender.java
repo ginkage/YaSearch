@@ -101,6 +101,8 @@ public class VoiceSender {
         String nodeId = pickBestNodeId(connectedNodes);
         if (nodeId != null) {
             openChannel(nodeId);
+        } else {
+            mSetupResult.onResult(null, "No connection");
         }
     }
 

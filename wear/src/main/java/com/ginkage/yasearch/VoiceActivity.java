@@ -128,12 +128,17 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     }
 
     @Override
-    public void onResult(OutputStream stream, String message) {
-        mTextView.setText(message);
-        if (stream != null) {
-            VoiceRecorder recorder = new VoiceRecorder();
-            recorder.startRecording(stream, this);
-        }
+    public void onResult(final OutputStream stream, final String message) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mTextView.setText(message);
+                if (stream != null) {
+                    VoiceRecorder recorder = new VoiceRecorder();
+                    recorder.startRecording(stream, VoiceActivity.this);
+                }
+            }
+        });
     }
 
     @Override
@@ -164,13 +169,23 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     @Override
     public void onStreamClosed() {
-        mTextView.setText(getString(R.string.bro_common_speech_dialog_ready_button));
-        mMicView.setVisibility(View.GONE);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mTextView.setText(getString(R.string.bro_common_speech_dialog_ready_button));
+                mMicView.setVisibility(View.GONE);
+            }
+        });
     }
 
     @Override
     public void onError() {
-        mTextView.setText(getString(R.string.spotter_error) + "Couldn't start recording");
-        mMicView.setVisibility(View.GONE);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mTextView.setText(getString(R.string.spotter_error) + "Couldn't start recording");
+                mMicView.setVisibility(View.GONE);
+            }
+        });
     }
 }

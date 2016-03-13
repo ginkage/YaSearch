@@ -71,6 +71,7 @@ public class VoiceRecorder {
                                 bytesRead += read;
                             } catch (IOException e) {
                                 stopRecording(recordingListener);
+                                recordingListener.onError();
                                 break;
                             }
                         }
@@ -112,6 +113,5 @@ public class VoiceRecorder {
                 t.printStackTrace();
             }
         }
-        recordingListener.onError();
     }
 }
