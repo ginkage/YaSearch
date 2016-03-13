@@ -26,7 +26,7 @@ public class VoiceRecorder {
     private static final int AUDIO_SOURCE = MediaRecorder.AudioSource.VOICE_RECOGNITION;
     private static final int RECORDER_BUFFER_SIZE = AudioRecord.getMinBufferSize(
             RECORDER_SAMPLE_RATE, RECORDER_CHANNELS, RECORDER_AUDIO_FORMAT);
-    private static final int MAX_LEN = 500000;
+    private static final int MAX_LEN = 160000;
 
     private AudioRecord recorder = null;
     private boolean isRecording = false;
@@ -70,14 +70,14 @@ public class VoiceRecorder {
                                 stream.write(dataBuffer, 0, read);
                                 bytesRead += read;
                             } catch (IOException e) {
-                                stopRecording(recordingListener);
+                                stopRecording();
                                 recordingListener.onError();
                                 break;
                             }
                         }
                         if (bytesRead > MAX_LEN) {
                             Log.d(TAG, "buffer size limit " + bytesRead + " reached.");
-                            stopRecording(recordingListener);
+                            stopRecording();
                             break;
                         }
                     }
@@ -93,7 +93,7 @@ public class VoiceRecorder {
         }, "AudioRecorder Thread").start();
     }
 
-    public void stopRecording(RecordingListener recordingListener) {
+    public void stopRecording() {
         Log.d(TAG, "recording ended.");
         isRecording = false;
         bytesRead = 0;

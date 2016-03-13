@@ -5,7 +5,9 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.Result;
 import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.wearable.Channel;
 import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableListenerService;
@@ -20,8 +22,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 
-import ru.yandex.speechkit.SpeechKit;
-
 public class YaSearchService extends WearableListenerService {
     private static String TAG = "YaSearchService";
     private static String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
@@ -29,27 +29,33 @@ public class YaSearchService extends WearableListenerService {
     private static String SEARCH_URL = "https://yandex.ru/search/xml?" +
             "user=ginkage&key=03.12783281:7a4ce2d242c21697a74b02e4b2c74bd0";
 
-    private void receiveData(final InputStream inputStream) {
+    private static final ResultCallback<Status> EMPTY_CALLBACK =
+            new ResultCallback<Status>() {
+                @Override
+                public void onResult(@NonNull Status result) {
+                    if (!result.getStatus().isSuccess()) {
+                        Log.e(TAG, "Failed: " + result.getStatusMessage());
+                    }
+                }
+            };
+
+    private static final ResultCallback<Result> MESSAGE_CALLBACK =
+            new ResultCallback<Result>() {
+                @Override
+                public void onResult(@NonNull Result result) {
+                    if (!result.getStatus().isSuccess()) {
+                        Log.e(TAG, "Failed: " + result.getStatus());
+                    }
+                }
+            };
+
+    private void receiveData(
+            final GoogleApiClient googleApiClient,
+            final String nodeId,
+            final InputStream inputStream) {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                int len;
-                int bufferSize = 4096;
-                byte[] buffer = new byte[bufferSize];
-
-                Log.i(TAG, "Start getting data from mic");
-                ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
-                try {
-                    while ((len = inputStream.read(buffer)) != -1) {
-                        byteBuffer.write(buffer, 0, len);
-                    }
-                    Log.i(TAG, "Received from the mic: " + byteBuffer.size() + " bytes");
-                }
-                catch (IOException e) {
-                    e.printStackTrace();
-                    return;
-                }
-
                 URL url;
                 try {
                     url = new URL("http://asr.yandex.net/asr_xml?" +
@@ -71,27 +77,38 @@ public class YaSearchService extends WearableListenerService {
                 }
 
                 try {
+                    int len;
+                    int bufferSize = 4096;
+                    byte[] buffer = new byte[bufferSize];
+
                     urlConnection.setConnectTimeout(30000);
                     urlConnection.setReadTimeout(30000);
                     urlConnection.setDoOutput(true);
                     urlConnection.setRequestMethod("POST");
                     urlConnection.setRequestProperty("Content-Type",
                             "audio/x-pcm;bit=16;rate=16000");
-                    urlConnection.setFixedLengthStreamingMode(byteBuffer.size());
-//                    urlConnection.setChunkedStreamingMode(0);
+//                    urlConnection.setFixedLengthStreamingMode(byteBuffer.size());
+                    urlConnection.setChunkedStreamingMode(bufferSize);
 
+                    Log.i(TAG, "Start sending data from mic");
                     OutputStream out = new BufferedOutputStream(urlConnection.getOutputStream());
-                    out.write(byteBuffer.toByteArray());
+                    while ((len = inputStream.read(buffer)) != -1) {
+                        out.write(buffer, 0, len);
+                    }
                     out.close();
 
                     Log.i(TAG, "Start receiving data");
-                    byteBuffer.reset();
+                    ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
                     InputStream in = new BufferedInputStream(urlConnection.getInputStream());
                     while ((len = in.read(buffer)) != -1) {
                         byteBuffer.write(buffer, 0, len);
                     }
 
                     Log.i(TAG, "Received: " + byteBuffer.toString());
+
+                    Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                            "/yask/result", byteBuffer.toByteArray())
+                            .setResultCallback(MESSAGE_CALLBACK);
                 }
                 catch (IOException e) {
                     e.printStackTrace();
@@ -105,6 +122,7 @@ public class YaSearchService extends WearableListenerService {
 
     @Override
     public void onChannelOpened(Channel channel) {
+        final String nodeId = channel.getNodeId();
         new AsyncTask<Channel, Void, Void>() {
             @Override
             protected Void doInBackground(Channel... params) {
@@ -122,7 +140,8 @@ public class YaSearchService extends WearableListenerService {
                                 public void onResult(@NonNull Channel.GetInputStreamResult result) {
                                     if (result.getStatus().isSuccess()) {
                                         Log.i(TAG, "Got an input stream");
-                                        receiveData(result.getInputStream());
+                                        receiveData(googleApiClient, nodeId,
+                                                result.getInputStream());
                                     } else {
                                         Log.e(TAG, "Failed to get input stream");
                                     }
@@ -139,11 +158,5 @@ public class YaSearchService extends WearableListenerService {
     @Override
     public void onChannelClosed(Channel channel, int closeReason, int appSpecificErrorCode) {
         super.onChannelClosed(channel, closeReason, appSpecificErrorCode);
-    }
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        SpeechKit.getInstance().configure(getApplicationContext(), API_KEY);
     }
 }

@@ -142,7 +142,7 @@ public class VoiceSender {
                     public void onResult(@NonNull Channel.GetOutputStreamResult result) {
                         if (result.getStatus().isSuccess()) {
                             mDataStream = result.getOutputStream();
-                            mSetupResult.onResult(mDataStream, "Connected");
+                            mSetupResult.onResult(mDataStream, "Listening");
                         } else {
                             mSetupResult.onResult(null, "Failed to get output stream");
                         }

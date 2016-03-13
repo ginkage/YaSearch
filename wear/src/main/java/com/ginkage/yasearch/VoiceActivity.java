@@ -1,6 +1,10 @@
 package com.ginkage.yasearch;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -10,6 +14,12 @@ import android.support.wearable.activity.WearableActivity;
 import android.view.View;
 import android.widget.TextView;
 
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 
 import ru.yandex.speechkit.Error;
@@ -23,6 +33,8 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     private static String API_KEY = "f9c9a742-8c33-4961-9217-f622744b6063";
     private static final int REQUEST_PERMISSION_CODE = 1;
+
+    public static final String RESULT_ACTION = "com.ginkage.yasearch.RESULT";
 
     private TextView mTextView;
     private View mMicView;
@@ -91,12 +103,14 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     @Override
     protected void onResume() {
         super.onResume();
+        registerReceiver(receiver, new IntentFilter(RESULT_ACTION));
         startPhraseSpotter(true);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        unregisterReceiver(receiver);
         Error stopResult = PhraseSpotter.stop();
         handleError(stopResult);
     }
@@ -188,4 +202,50 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
             }
         });
     }
+
+    private BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(RESULT_ACTION)) {
+                byte[] result = intent.getByteArrayExtra("result");
+//                mTextView.setText(new String(result, 0, result.length));
+//                startPhraseSpotter(true);
+
+                try {
+                    XmlPullParserFactory xmlFactoryObject = XmlPullParserFactory.newInstance();
+                    XmlPullParser myParser = xmlFactoryObject.newPullParser();
+                    myParser.setInput(new ByteArrayInputStream(result), null);
+                    int event = myParser.getEventType();
+                    boolean variant = false;
+                    while (event != XmlPullParser.END_DOCUMENT) {
+                        String name = myParser.getName();
+                        switch (event){
+                            case XmlPullParser.START_TAG:
+                                if (name.equals("variant")) {
+                                    variant = true;
+                                }
+                                break;
+
+                            case XmlPullParser.TEXT:
+                                if (variant) {
+                                    mTextView.setText(myParser.getText());
+                                }
+                                break;
+
+                            case XmlPullParser.END_TAG:
+                                if (name.equals("variant")) {
+                                    variant = false;
+                                }
+                                break;
+                        }
+                        event = myParser.next();
+                    }
+                } catch (XmlPullParserException | IOException e) {
+                    e.printStackTrace();
+                    mTextView.setText("Error: " + e.getMessage());
+                }
+            }
+        }
+    };
 }
