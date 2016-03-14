@@ -8,6 +8,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.speech.tts.Voice;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.wearable.activity.WearableActivity;
@@ -34,6 +35,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     private View mMicView;
     private boolean mSpotting;
     private boolean mShowingResults;
+    private VoiceSender mVoiceSender;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +47,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         mMicView = findViewById(R.id.bro_common_speech_progress);
         mMicView.setVisibility(View.GONE);
         mSpotting = false;
+        mVoiceSender = new VoiceSender(this, this);
 
         SpeechKit.getInstance().configure(getApplicationContext(), API_KEY);
         PhraseSpotterModel model = new PhraseSpotterModel("phrase-spotter/yandex");
@@ -149,8 +152,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     public void onPhraseSpotted(String s, int i) {
         setText(getString(R.string.phrase_spotted), false, false);
         PhraseSpotter.stop();
-        VoiceSender sender = new VoiceSender(this, this);
-        sender.setupVoiceChannel();
+        mVoiceSender.setupVoiceChannel();
     }
 
     @Override
@@ -179,6 +181,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     @Override
     public void onError() {
         setText(getString(R.string.spotter_error) + "Couldn't start recording", false, false);
+        mVoiceSender.shutdownVoiceChannel();
     }
 
     private BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -188,6 +191,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
             if (action.equals(RESULT_ACTION)) {
                 byte[] result = intent.getByteArrayExtra("result");
                 setText(new String(result, 0, result.length), false, true);
+                mVoiceSender.shutdownVoiceChannel();
                 startPhraseSpotter(true);
             }
         }

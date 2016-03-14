@@ -62,8 +62,8 @@ public class VoiceRecorder {
             @Override
             public void run() {
                 try {
+                    byte[] dataBuffer = new byte[RECORDER_BUFFER_SIZE];
                     while (isRecording) {
-                        byte[] dataBuffer = new byte[RECORDER_BUFFER_SIZE];
                         int read = recorder.read(dataBuffer, 0, RECORDER_BUFFER_SIZE);
                         if (read > 0) {
                             try {
@@ -83,6 +83,7 @@ public class VoiceRecorder {
                     }
                 } finally {
                     try {
+                        stream.flush();
                         stream.close();
                         recordingListener.onStreamClosed();
                     } catch (IOException e) {

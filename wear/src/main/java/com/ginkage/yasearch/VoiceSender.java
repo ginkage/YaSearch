@@ -85,7 +85,7 @@ public class VoiceSender {
         }.execute();
     }
 
-    private void shutdownVoiceChannel() {
+    public void shutdownVoiceChannel() {
         closeChannel();
 
         Wearable.CapabilityApi.removeCapabilityListener(

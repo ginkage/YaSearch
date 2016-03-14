@@ -150,8 +150,8 @@ public class YaSearchService extends WearableListenerService {
             boolean variant = false;
             String bestVariant = null;
             String curVariant = null;
-            double bestConfidence = -1;
-            double curConfidence = -2;
+            double bestConfidence = -Double.MAX_VALUE;
+            double curConfidence = -Double.MAX_VALUE;
 
             while (event != XmlPullParser.END_DOCUMENT) {
                 String name = myParser.getName();
@@ -164,6 +164,11 @@ public class YaSearchService extends WearableListenerService {
                             String confidence = myParser.getAttributeValue(null, "confidence");
                             if (confidence != null) {
                                 curConfidence = Double.parseDouble(confidence);
+                            }
+                        } else if (name.equals("recognitionResults")) {
+                            String success = myParser.getAttributeValue(null, "success");
+                            if (Integer.parseInt(success) == 0) {
+                                bestVariant = "Sorry, didn't catch that";
                             }
                         }
                         break;
@@ -188,12 +193,14 @@ public class YaSearchService extends WearableListenerService {
                 event = myParser.next();
             }
 
-            if (bestVariant != null) {
-                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                        "/yask/result", bestVariant.getBytes())
-                        .setResultCallback(MESSAGE_CALLBACK);
-//                doSearch(googleApiClient, nodeId, bestVariant);
+            if (bestVariant == null) {
+                bestVariant = "Couldn't parse results";
             }
+
+            Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                    "/yask/result", bestVariant.getBytes())
+                    .setResultCallback(MESSAGE_CALLBACK);
+//            doSearch(googleApiClient, nodeId, bestVariant);
         } catch (XmlPullParserException | IOException e) {
             e.printStackTrace();
         }
