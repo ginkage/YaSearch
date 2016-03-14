@@ -14,12 +14,6 @@ import android.support.wearable.activity.WearableActivity;
 import android.view.View;
 import android.widget.TextView;
 
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
-import org.xmlpull.v1.XmlPullParserFactory;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.OutputStream;
 
 import ru.yandex.speechkit.Error;
@@ -39,6 +33,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     private TextView mTextView;
     private View mMicView;
     private boolean mSpotting;
+    private boolean mShowingResults;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,7 +91,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     private void handleError(Error error) {
         if (error.getCode() != Error.ERROR_OK) {
-            mTextView.setText(getString(R.string.spotter_error) + error.getString());
+            setText(getString(R.string.spotter_error) + error.getString(), false, false);
         }
     }
 
@@ -143,22 +138,16 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     @Override
     public void onResult(final OutputStream stream, final String message) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mTextView.setText(message);
-                if (stream != null) {
-                    VoiceRecorder recorder = new VoiceRecorder();
-                    recorder.startRecording(stream, VoiceActivity.this);
-                }
-            }
-        });
+        setText(message, (stream != null), false);
+        if (stream != null) {
+            VoiceRecorder recorder = new VoiceRecorder();
+            recorder.startRecording(stream, VoiceActivity.this);
+        }
     }
 
     @Override
     public void onPhraseSpotted(String s, int i) {
-        mTextView.setText(getString(R.string.phrase_spotted));
-        mMicView.setVisibility(View.VISIBLE);
+        setText(getString(R.string.phrase_spotted), false, false);
         PhraseSpotter.stop();
         VoiceSender sender = new VoiceSender(this, this);
         sender.setupVoiceChannel();
@@ -166,8 +155,9 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     @Override
     public void onPhraseSpotterStarted() {
-        mTextView.setText(getString(R.string.bro_common_speech_dialog_hint));
-        mMicView.setVisibility(View.GONE);
+        if (!mShowingResults) {
+            setText(getString(R.string.bro_common_speech_dialog_hint), false, false);
+        }
         mSpotting = true;
     }
 
@@ -183,24 +173,12 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
 
     @Override
     public void onStreamClosed() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mTextView.setText(getString(R.string.bro_common_speech_dialog_ready_button));
-                mMicView.setVisibility(View.GONE);
-            }
-        });
+        setText(getString(R.string.bro_common_speech_dialog_ready_button), false, false);
     }
 
     @Override
     public void onError() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mTextView.setText(getString(R.string.spotter_error) + "Couldn't start recording");
-                mMicView.setVisibility(View.GONE);
-            }
-        });
+        setText(getString(R.string.spotter_error) + "Couldn't start recording", false, false);
     }
 
     private BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -209,43 +187,20 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
             String action = intent.getAction();
             if (action.equals(RESULT_ACTION)) {
                 byte[] result = intent.getByteArrayExtra("result");
-//                mTextView.setText(new String(result, 0, result.length));
-//                startPhraseSpotter(true);
-
-                try {
-                    XmlPullParserFactory xmlFactoryObject = XmlPullParserFactory.newInstance();
-                    XmlPullParser myParser = xmlFactoryObject.newPullParser();
-                    myParser.setInput(new ByteArrayInputStream(result), null);
-                    int event = myParser.getEventType();
-                    boolean variant = false;
-                    while (event != XmlPullParser.END_DOCUMENT) {
-                        String name = myParser.getName();
-                        switch (event){
-                            case XmlPullParser.START_TAG:
-                                if (name.equals("variant")) {
-                                    variant = true;
-                                }
-                                break;
-
-                            case XmlPullParser.TEXT:
-                                if (variant) {
-                                    mTextView.setText(myParser.getText());
-                                }
-                                break;
-
-                            case XmlPullParser.END_TAG:
-                                if (name.equals("variant")) {
-                                    variant = false;
-                                }
-                                break;
-                        }
-                        event = myParser.next();
-                    }
-                } catch (XmlPullParserException | IOException e) {
-                    e.printStackTrace();
-                    mTextView.setText("Error: " + e.getMessage());
-                }
+                setText(new String(result, 0, result.length), false, true);
+                startPhraseSpotter(true);
             }
         }
     };
+
+    private void setText(final String text, final boolean listening, boolean results) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mTextView.setText(text);
+                mMicView.setVisibility(listening ? View.VISIBLE : View.GONE);
+            }
+        });
+        mShowingResults = results;
+    }
 }
