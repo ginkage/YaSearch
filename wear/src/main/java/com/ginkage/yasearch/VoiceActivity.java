@@ -1,41 +1,36 @@
 package com.ginkage.yasearch;
 
 import android.Manifest;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.speech.tts.Voice;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.wearable.activity.WearableActivity;
 import android.view.View;
 import android.widget.TextView;
 
-import java.io.OutputStream;
-
 import ru.yandex.speechkit.Error;
 import ru.yandex.speechkit.PhraseSpotter;
 import ru.yandex.speechkit.PhraseSpotterListener;
 import ru.yandex.speechkit.PhraseSpotterModel;
+import ru.yandex.speechkit.Recognition;
+import ru.yandex.speechkit.Recognizer;
+import ru.yandex.speechkit.RecognizerListener;
 import ru.yandex.speechkit.SpeechKit;
 
-public class VoiceActivity extends WearableActivity implements VoiceSender.SetupResultListener,
-        PhraseSpotterListener, VoiceRecorder.RecordingListener {
+public class VoiceActivity
+        extends WearableActivity
+        implements PhraseSpotterListener, RecognizerListener {
 
     private static String API_KEY = "f9c9a742-8c33-4961-9217-f622744b6063";
     private static final int REQUEST_PERMISSION_CODE = 1;
-
-    public static final String RESULT_ACTION = "com.ginkage.yasearch.RESULT";
 
     private TextView mTextView;
     private View mMicView;
     private boolean mSpotting;
     private boolean mShowingResults;
-    private VoiceSender mVoiceSender;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,7 +42,6 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         mMicView = findViewById(R.id.bro_common_speech_progress);
         mMicView.setVisibility(View.GONE);
         mSpotting = false;
-        mVoiceSender = new VoiceSender(this, this);
 
         SpeechKit.getInstance().configure(getApplicationContext(), API_KEY);
         PhraseSpotterModel model = new PhraseSpotterModel("phrase-spotter/yandex");
@@ -101,58 +95,25 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     @Override
     protected void onResume() {
         super.onResume();
-        registerReceiver(receiver, new IntentFilter(RESULT_ACTION));
         startPhraseSpotter(true);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterReceiver(receiver);
-        Error stopResult = PhraseSpotter.stop();
-        handleError(stopResult);
-    }
-
-    @Override
-    public void onEnterAmbient(Bundle ambientDetails) {
-        super.onEnterAmbient(ambientDetails);
-        updateDisplay();
-    }
-
-    @Override
-    public void onUpdateAmbient() {
-        super.onUpdateAmbient();
-        updateDisplay();
-    }
-
-    @Override
-    public void onExitAmbient() {
-        updateDisplay();
-        super.onExitAmbient();
-    }
-
-    private void updateDisplay() {
-        if (isAmbient()) {
-            PhraseSpotter.stop();
-        } else {
-            startPhraseSpotter(false);
-        }
-    }
-
-    @Override
-    public void onResult(final OutputStream stream, final String message) {
-        setText(message, (stream != null), false);
-        if (stream != null) {
-            VoiceRecorder recorder = new VoiceRecorder();
-            recorder.startRecording(stream, VoiceActivity.this);
-        }
+        handleError(PhraseSpotter.stop());
     }
 
     @Override
     public void onPhraseSpotted(String s, int i) {
         setText(getString(R.string.phrase_spotted), false, false);
         PhraseSpotter.stop();
-        mVoiceSender.setupVoiceChannel();
+
+        Recognizer recognizer = Recognizer.create("ru-RU", Recognizer.Model.QUERIES, this);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED) {
+            recognizer.start();
+        }
     }
 
     @Override
@@ -173,30 +134,6 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         handleError(error);
     }
 
-    @Override
-    public void onStreamClosed() {
-        setText(getString(R.string.bro_common_speech_dialog_ready_button), false, false);
-    }
-
-    @Override
-    public void onError() {
-        setText(getString(R.string.spotter_error) + "Couldn't start recording", false, false);
-        mVoiceSender.shutdownVoiceChannel();
-    }
-
-    private BroadcastReceiver receiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action.equals(RESULT_ACTION)) {
-                byte[] result = intent.getByteArrayExtra("result");
-                setText(new String(result, 0, result.length), false, true);
-                mVoiceSender.shutdownVoiceChannel();
-                startPhraseSpotter(true);
-            }
-        }
-    };
-
     private void setText(final String text, final boolean listening, boolean results) {
         runOnUiThread(new Runnable() {
             @Override
@@ -206,5 +143,47 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
             }
         });
         mShowingResults = results;
+    }
+
+    @Override
+    public void onRecordingBegin(Recognizer recognizer) {
+        setText(getString(R.string.recognizer_started), true, false);
+    }
+
+    @Override
+    public void onSpeechDetected(Recognizer recognizer) {
+    }
+
+    @Override
+    public void onSpeechEnds(Recognizer recognizer) {
+    }
+
+    @Override
+    public void onRecordingDone(Recognizer recognizer) {
+    }
+
+    @Override
+    public void onSoundDataRecorded(Recognizer recognizer, byte[] data) {
+    }
+
+    @Override
+    public void onPowerUpdated(Recognizer recognizer, float power) {
+    }
+
+    @Override
+    public void onPartialResults(
+            Recognizer recognizer, Recognition results, boolean endOfUtterance) {
+        setText(results.getBestResultText(), true, false);
+    }
+
+    @Override
+    public void onRecognitionDone(Recognizer recognizer, Recognition results) {
+        setText(results.getBestResultText(), false, true);
+        startPhraseSpotter(true);
+    }
+
+    @Override
+    public void onError(Recognizer recognizer, Error error) {
+        handleError(error);
     }
 }
