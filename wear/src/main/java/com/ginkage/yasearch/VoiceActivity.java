@@ -27,6 +27,7 @@ public class VoiceActivity
     private static String API_KEY = "f9c9a742-8c33-4961-9217-f622744b6063";
     private static final int REQUEST_PERMISSION_CODE = 1;
 
+    private CirclesAnimationView mCircles;
     private TextView mTextView;
     private View mMicView;
     private boolean mSpotting;
@@ -38,9 +39,11 @@ public class VoiceActivity
         setContentView(R.layout.activity_voice);
         setAmbientEnabled();
 
+        mCircles = (CirclesAnimationView) findViewById(R.id.bro_common_speech_titles);
         mTextView = (TextView) findViewById(R.id.bro_common_speech_title);
         mMicView = findViewById(R.id.bro_common_speech_progress);
         mMicView.setVisibility(View.GONE);
+        mCircles.setVisibility(View.GONE);
         mSpotting = false;
 
         SpeechKit.getInstance().configure(getApplicationContext(), API_KEY);
@@ -134,6 +137,17 @@ public class VoiceActivity
         handleError(error);
     }
 
+    private void setCirclesVisibility(boolean visible) {
+        if (visible) {
+            mCircles.setVisibility(View.VISIBLE);
+            mCircles.setImage(mMicView);
+        } else {
+            mCircles.setVisibility(View.GONE);
+        }
+
+        mCircles.setPlaying(visible);
+    }
+
     private void setText(final String text, final boolean listening, boolean results) {
         runOnUiThread(new Runnable() {
             @Override
@@ -148,6 +162,7 @@ public class VoiceActivity
     @Override
     public void onRecordingBegin(Recognizer recognizer) {
         setText(getString(R.string.recognizer_started), true, false);
+        setCirclesVisibility(true);
     }
 
     @Override
@@ -168,6 +183,13 @@ public class VoiceActivity
 
     @Override
     public void onPowerUpdated(Recognizer recognizer, float power) {
+        float normalizedLevel = Math.max(Math.min(power, 1.0F), 0.0F);
+        if (normalizedLevel >= -1.0F) {
+            mCircles.hasNoSound(false);
+            if (mCircles.canBeAdded(normalizedLevel)) {
+                mCircles.addCircle(normalizedLevel);
+            }
+        }
     }
 
     @Override
@@ -179,11 +201,14 @@ public class VoiceActivity
     @Override
     public void onRecognitionDone(Recognizer recognizer, Recognition results) {
         setText(results.getBestResultText(), false, true);
+        setCirclesVisibility(false);
         startPhraseSpotter(true);
     }
 
     @Override
     public void onError(Recognizer recognizer, Error error) {
         handleError(error);
+        setCirclesVisibility(false);
+        startPhraseSpotter(true);
     }
 }
