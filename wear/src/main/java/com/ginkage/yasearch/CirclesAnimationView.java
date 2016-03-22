@@ -131,7 +131,7 @@ public class CirclesAnimationView extends View {
             public void run() {
                 long width = (long)view.getMeasuredWidth();
                 long height = (long)view.getMeasuredHeight();
-                CirclesAnimationView.this.setMinRadius((float)(Math.min(width, height) / 2L));
+                CirclesAnimationView.this.setMinRadius((float)(Math.max(width, height) / 2L));
             }
         });
     }
