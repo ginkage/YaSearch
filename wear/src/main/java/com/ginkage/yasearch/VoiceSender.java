@@ -1,6 +1,7 @@
 package com.ginkage.yasearch;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 
@@ -11,6 +12,8 @@ import com.google.android.gms.wearable.CapabilityApi;
 import com.google.android.gms.wearable.CapabilityInfo;
 import com.google.android.gms.wearable.Channel;
 import com.google.android.gms.wearable.ChannelApi;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.Wearable;
 
@@ -28,6 +31,8 @@ public class VoiceSender {
         void onResult(OutputStream stream, String message);
     }
 
+    public static final String RESULT_ACTION = "com.ginkage.yasearch.RESULT";
+
     private static final String YASK_CAPABILITY_NAME = "yandex_speech_kit";
     private static final String YASK_PATH = "/yask";
 
@@ -38,13 +43,8 @@ public class VoiceSender {
                 }
             };
 
-    private final CapabilityApi.CapabilityListener mCapabilityListener =
-            new CapabilityApi.CapabilityListener() {
-                @Override
-                public void onCapabilityChanged(CapabilityInfo capabilityInfo) {
-                    updateYaskCapability(capabilityInfo);
-                }
-            };
+    private final CapabilityApi.CapabilityListener mCapabilityListener;
+    private final MessageApi.MessageListener mMessageListener;
 
     private Channel mOutputChannel;
     private OutputStream mDataStream;
@@ -53,11 +53,27 @@ public class VoiceSender {
     private final GoogleApiClient mGoogleApiClient;
     private final SetupResultListener mSetupResult;
 
-    public VoiceSender(Context context, SetupResultListener setupResult) {
+    public VoiceSender(final Context context, SetupResultListener setupResult) {
         mGoogleApiClient = new GoogleApiClient.Builder(context)
                 .addApi(Wearable.API)
                 .build();
         mSetupResult = setupResult;
+
+        mCapabilityListener = new CapabilityApi.CapabilityListener() {
+            @Override
+            public void onCapabilityChanged(CapabilityInfo capabilityInfo) {
+                updateYaskCapability(capabilityInfo);
+            }
+        };
+
+        mMessageListener = new MessageApi.MessageListener() {
+            @Override
+            public void onMessageReceived(MessageEvent messageEvent) {
+                Intent i = new Intent(RESULT_ACTION);
+                i.putExtra("result", messageEvent.getData());
+                context.sendBroadcast(i);
+            }
+        };
     }
 
     public void setupVoiceChannel() {
@@ -72,6 +88,9 @@ public class VoiceSender {
 
                     if (result.getStatus().isSuccess()) {
                         updateYaskCapability(result.getCapability());
+
+                        Wearable.MessageApi.addListener(mGoogleApiClient, mMessageListener)
+                                .setResultCallback(EMPTY_CALLBACK);
 
                         Wearable.CapabilityApi.addCapabilityListener(mGoogleApiClient,
                                 mCapabilityListener, YASK_CAPABILITY_NAME)
@@ -90,6 +109,9 @@ public class VoiceSender {
 
         Wearable.CapabilityApi.removeCapabilityListener(
                 mGoogleApiClient, mCapabilityListener, YASK_CAPABILITY_NAME)
+                .setResultCallback(EMPTY_CALLBACK);
+
+        Wearable.MessageApi.removeListener(mGoogleApiClient, mMessageListener)
                 .setResultCallback(EMPTY_CALLBACK);
 
         mGoogleApiClient.disconnect();

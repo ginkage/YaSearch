@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="yask_circle_animation_step">0.7dp</dimen>
+    <dimen name="yask_default_circle_thin">3dp</dimen>
+    <dimen name="yask_default_icon_size">88.0dip</dimen>
+</resources>

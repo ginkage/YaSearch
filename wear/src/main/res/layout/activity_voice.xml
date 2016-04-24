@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <android.support.wearable.view.BoxInsetLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="com.ginkage.yasearch.VoiceActivity"
+    tools:context=".ProxyVoiceActivity"
     tools:deviceIds="wear">
 
     <LinearLayout android:gravity="fill_horizontal|center|top" android:orientation="vertical" android:background="#ffffffff" android:layout_width="fill_parent" android:layout_height="fill_parent"
@@ -14,10 +13,10 @@
             android:gravity="center_vertical">
             <TextView android:textAppearance="?android:textAppearanceLarge" android:textColor="#ff000000" android:gravity="center" android:id="@+id/bro_common_speech_title" android:paddingTop="15.0dip" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="@string/bro_common_speech_dialog_hint" />
             <RelativeLayout android:gravity="center" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="-10.0dip" android:layout_marginBottom="-10.0dip">
-                <!-- ru.yandex.speechkit.gui.CirclesAnimationView android:id="@+id/bro_common_speech_titles" android:layout_width="200.0dip" android:layout_height="200.0dip" android:layout_centerInParent="true" / -->
                 <ImageView android:gravity="center" android:id="@+id/bro_common_speech_mic_back" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="25.0dip" android:src="@drawable/bro_common_speech_mic_back" android:scaleType="center" android:layout_centerInParent="true" />
                 <View android:id="@+id/bro_common_speech_progress" android:background="@drawable/bro_common_speech_mic_progress" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignLeft="@+id/bro_common_speech_mic_front" android:layout_alignTop="@+id/bro_common_speech_mic_front" android:layout_alignRight="@+id/bro_common_speech_mic_front" android:layout_alignBottom="@+id/bro_common_speech_mic_front" android:layout_centerInParent="true" />
                 <ImageView android:gravity="center" android:id="@+id/bro_common_speech_mic_front" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="25.0dip" android:src="@drawable/bro_common_speech_mic" android:scaleType="center" android:layout_centerInParent="true" />
+                <com.ginkage.yasearch.CirclesAnimationView android:id="@+id/bro_common_speech_titles" android:layout_width="200.0dip" android:layout_height="200.0dip" android:layout_centerInParent="true" />
             </RelativeLayout>
         </LinearLayout>
     </LinearLayout>

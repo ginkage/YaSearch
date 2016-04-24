@@ -8,7 +8,6 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.speech.tts.Voice;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.wearable.activity.WearableActivity;
@@ -23,19 +22,32 @@ import ru.yandex.speechkit.PhraseSpotterListener;
 import ru.yandex.speechkit.PhraseSpotterModel;
 import ru.yandex.speechkit.SpeechKit;
 
-public class VoiceActivity extends WearableActivity implements VoiceSender.SetupResultListener,
-        PhraseSpotterListener, VoiceRecorder.RecordingListener {
+public class ProxyVoiceActivity extends WearableActivity implements PhraseSpotterListener,
+            VoiceSender.SetupResultListener, VoiceRecorder.RecordingListener {
 
     private static String API_KEY = "f9c9a742-8c33-4961-9217-f622744b6063";
     private static final int REQUEST_PERMISSION_CODE = 1;
 
-    public static final String RESULT_ACTION = "com.ginkage.yasearch.RESULT";
-
+    private CirclesAnimationView mCircles;
     private TextView mTextView;
     private View mMicView;
     private boolean mSpotting;
     private boolean mShowingResults;
     private VoiceSender mVoiceSender;
+
+    private BroadcastReceiver mResultReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(VoiceSender.RESULT_ACTION)) {
+                byte[] result = intent.getByteArrayExtra("result");
+                setText(new String(result, 0, result.length), false, true);
+                mVoiceSender.shutdownVoiceChannel();
+                setCirclesVisibility(false);
+                startPhraseSpotter(true);
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,9 +55,11 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         setContentView(R.layout.activity_voice);
         setAmbientEnabled();
 
+        mCircles = (CirclesAnimationView) findViewById(R.id.bro_common_speech_titles);
         mTextView = (TextView) findViewById(R.id.bro_common_speech_title);
         mMicView = findViewById(R.id.bro_common_speech_progress);
         mMicView.setVisibility(View.GONE);
+        mCircles.setVisibility(View.GONE);
         mSpotting = false;
         mVoiceSender = new VoiceSender(this, this);
 
@@ -101,42 +115,15 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     @Override
     protected void onResume() {
         super.onResume();
-        registerReceiver(receiver, new IntentFilter(RESULT_ACTION));
+        registerReceiver(mResultReceiver, new IntentFilter(VoiceSender.RESULT_ACTION));
         startPhraseSpotter(true);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterReceiver(receiver);
-        Error stopResult = PhraseSpotter.stop();
-        handleError(stopResult);
-    }
-
-    @Override
-    public void onEnterAmbient(Bundle ambientDetails) {
-        super.onEnterAmbient(ambientDetails);
-        updateDisplay();
-    }
-
-    @Override
-    public void onUpdateAmbient() {
-        super.onUpdateAmbient();
-        updateDisplay();
-    }
-
-    @Override
-    public void onExitAmbient() {
-        updateDisplay();
-        super.onExitAmbient();
-    }
-
-    private void updateDisplay() {
-        if (isAmbient()) {
-            PhraseSpotter.stop();
-        } else {
-            startPhraseSpotter(false);
-        }
+        unregisterReceiver(mResultReceiver);
+        handleError(PhraseSpotter.stop());
     }
 
     @Override
@@ -144,7 +131,8 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         setText(message, (stream != null), false);
         if (stream != null) {
             VoiceRecorder recorder = new VoiceRecorder();
-            recorder.startRecording(stream, VoiceActivity.this);
+            recorder.startRecording(stream, this);
+            setCirclesVisibility(true);
         }
     }
 
@@ -152,6 +140,7 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     public void onPhraseSpotted(String s, int i) {
         setText(getString(R.string.phrase_spotted), false, false);
         PhraseSpotter.stop();
+
         mVoiceSender.setupVoiceChannel();
     }
 
@@ -173,6 +162,17 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
         handleError(error);
     }
 
+    private void setCirclesVisibility(boolean visible) {
+        if (visible) {
+            mCircles.setVisibility(View.VISIBLE);
+            mCircles.setImage(mMicView);
+        } else {
+            mCircles.setVisibility(View.GONE);
+        }
+
+        mCircles.setPlaying(visible);
+    }
+
     @Override
     public void onStreamClosed() {
         setText(getString(R.string.bro_common_speech_dialog_ready_button), false, false);
@@ -182,20 +182,9 @@ public class VoiceActivity extends WearableActivity implements VoiceSender.Setup
     public void onError() {
         setText(getString(R.string.spotter_error) + "Couldn't start recording", false, false);
         mVoiceSender.shutdownVoiceChannel();
+        setCirclesVisibility(false);
+        startPhraseSpotter(true);
     }
-
-    private BroadcastReceiver receiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action.equals(RESULT_ACTION)) {
-                byte[] result = intent.getByteArrayExtra("result");
-                setText(new String(result, 0, result.length), false, true);
-                mVoiceSender.shutdownVoiceChannel();
-                startPhraseSpotter(true);
-            }
-        }
-    };
 
     private void setText(final String text, final boolean listening, boolean results) {
         runOnUiThread(new Runnable() {
