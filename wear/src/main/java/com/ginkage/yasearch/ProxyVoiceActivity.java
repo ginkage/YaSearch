@@ -20,10 +20,15 @@ public class ProxyVoiceActivity extends VoiceActivity
             String action = intent.getAction();
             if (action.equals(VoiceSender.RESULT_ACTION)) {
                 byte[] result = intent.getByteArrayExtra("result");
-                setText(new String(result, 0, result.length), false, true);
-                mVoiceSender.shutdownVoiceChannel();
-                setCirclesVisibility(false);
-                startPhraseSpotter(true);
+                String text = new String(result, 0, result.length);
+                if (intent.getBooleanExtra("partial", false)) {
+                    setText(text, true, false);
+                } else {
+                    setText(text, false, true);
+                    mVoiceSender.shutdownVoiceChannel();
+                    setCirclesVisibility(false);
+                    startPhraseSpotter(true);
+                }
             }
         }
     };
@@ -72,7 +77,7 @@ public class ProxyVoiceActivity extends VoiceActivity
 
     @Override
     public void onStreamClosed() {
-        setText(getString(R.string.bro_common_speech_dialog_ready_button), false, false);
+        // setText(getString(R.string.bro_common_speech_dialog_ready_button), false, false);
     }
 
     @Override

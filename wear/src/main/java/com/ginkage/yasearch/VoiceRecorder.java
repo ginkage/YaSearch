@@ -71,7 +71,7 @@ public class VoiceRecorder {
                                 bytesRead += read;
                             } catch (IOException e) {
                                 stopRecording();
-                                recordingListener.onError();
+                                // recordingListener.onError();
                                 break;
                             }
                         }

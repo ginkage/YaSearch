@@ -69,9 +69,15 @@ public class VoiceSender {
         mMessageListener = new MessageApi.MessageListener() {
             @Override
             public void onMessageReceived(MessageEvent messageEvent) {
-                Intent i = new Intent(RESULT_ACTION);
-                i.putExtra("result", messageEvent.getData());
-                context.sendBroadcast(i);
+                String path = messageEvent.getPath();
+                if (path.endsWith("/channel_ready")) {
+                    mSetupResult.onResult(mDataStream, "Listening");
+                } else if (path.endsWith("/partial") || path.endsWith("/result")) {
+                    Intent i = new Intent(RESULT_ACTION);
+                    i.putExtra("result", messageEvent.getData());
+                    i.putExtra("partial", path.endsWith("/partial"));
+                    context.sendBroadcast(i);
+                }
             }
         };
     }
@@ -164,7 +170,7 @@ public class VoiceSender {
                     public void onResult(@NonNull Channel.GetOutputStreamResult result) {
                         if (result.getStatus().isSuccess()) {
                             mDataStream = result.getOutputStream();
-                            mSetupResult.onResult(mDataStream, "Listening");
+//                            mSetupResult.onResult(mDataStream, "Listening");
                         } else {
                             mSetupResult.onResult(null, "Failed to get output stream");
                         }
