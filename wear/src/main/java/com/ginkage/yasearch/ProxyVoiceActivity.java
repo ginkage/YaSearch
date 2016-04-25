@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.view.View;
 
 import java.io.OutputStream;
 
@@ -49,9 +50,17 @@ public class ProxyVoiceActivity extends VoiceActivity
     public void onResult(final OutputStream stream, final String message) {
         setText(message, (stream != null), false);
         if (stream != null) {
-            VoiceRecorder recorder = new VoiceRecorder();
+            final VoiceRecorder recorder = new VoiceRecorder();
             recorder.startRecording(stream, this);
             setCirclesVisibility(true);
+
+            mMicBackView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    mMicBackView.setOnClickListener(null);
+                    recorder.stopRecording();
+                }
+            });
         }
     }
 

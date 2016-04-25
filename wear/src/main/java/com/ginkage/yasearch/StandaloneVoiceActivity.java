@@ -3,6 +3,7 @@ package com.ginkage.yasearch;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.support.v4.app.ActivityCompat;
+import android.view.View;
 
 import ru.yandex.speechkit.Error;
 import ru.yandex.speechkit.Recognition;
@@ -15,10 +16,18 @@ public class StandaloneVoiceActivity extends VoiceActivity implements Recognizer
     public void onPhraseSpotted(String s, int i) {
         super.onPhraseSpotted(s, i);
 
-        Recognizer recognizer = Recognizer.create("ru-RU", Recognizer.Model.QUERIES, this);
+        final Recognizer recognizer = Recognizer.create("ru-RU", Recognizer.Model.QUERIES, this);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
                 == PackageManager.PERMISSION_GRANTED) {
             recognizer.start();
+
+            mMicBackView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    mMicBackView.setOnClickListener(null);
+                    recognizer.finishRecording();
+                }
+            });
         }
     }
 

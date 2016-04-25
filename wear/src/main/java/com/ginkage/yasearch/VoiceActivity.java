@@ -22,6 +22,7 @@ public class VoiceActivity extends WearableActivity implements PhraseSpotterList
     private static final int REQUEST_PERMISSION_CODE = 1;
 
     protected CirclesAnimationView mCircles;
+    protected View mMicBackView;
     private TextView mTextView;
     private View mMicView;
     private boolean mSpotting;
@@ -33,14 +34,17 @@ public class VoiceActivity extends WearableActivity implements PhraseSpotterList
         setContentView(R.layout.activity_voice);
         setAmbientEnabled();
 
-        mCircles = (CirclesAnimationView) findViewById(R.id.bro_common_speech_titles);
         mTextView = (TextView) findViewById(R.id.bro_common_speech_title);
+        mMicBackView = findViewById(R.id.bro_common_speech_mic_back);
         mMicView = findViewById(R.id.bro_common_speech_progress);
         mMicView.setVisibility(View.GONE);
+        mCircles = (CirclesAnimationView) findViewById(R.id.bro_common_speech_titles);
         mCircles.setVisibility(View.GONE);
         mSpotting = false;
 
-        SpeechKit.getInstance().configure(getApplicationContext(), API_KEY);
+        SpeechKit speechKit = SpeechKit.getInstance();
+        speechKit.configure(getApplicationContext(), API_KEY);
+
         PhraseSpotterModel model = new PhraseSpotterModel("phrase-spotter/yandex");
         Error loadResult = model.load();
         if (loadResult.getCode() != Error.ERROR_OK) {
@@ -86,6 +90,16 @@ public class VoiceActivity extends WearableActivity implements PhraseSpotterList
             setText(getString(R.string.bro_common_speech_dialog_hint), false, false);
         }
         mSpotting = true;
+
+        mMicBackView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mSpotting) {
+                    mMicBackView.setOnClickListener(null);
+                    onPhraseSpotted("", 0);
+                }
+            }
+        });
     }
 
     @Override
