@@ -17,6 +17,7 @@ import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.Wearable;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Set;
@@ -169,7 +170,7 @@ public class VoiceSender {
                     @Override
                     public void onResult(@NonNull Channel.GetOutputStreamResult result) {
                         if (result.getStatus().isSuccess()) {
-                            mDataStream = result.getOutputStream();
+                            mDataStream = new BufferedOutputStream(result.getOutputStream());
 //                            mSetupResult.onResult(mDataStream, "Listening");
                         } else {
                             mSetupResult.onResult(null, "Failed to get output stream");

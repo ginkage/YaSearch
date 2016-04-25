@@ -43,7 +43,7 @@ public class VoiceRecorder {
                 RECORDER_AUDIO_FORMAT,
                 RECORDER_BUFFER_SIZE);
         try {
-            noiseSuppressor  = NoiseSuppressor.create(recorder.getAudioSessionId());
+            noiseSuppressor = NoiseSuppressor.create(recorder.getAudioSessionId());
             if (noiseSuppressor.setEnabled(true) != AudioEffect.SUCCESS)  {
                 noiseSuppressor = null;
             } else {
