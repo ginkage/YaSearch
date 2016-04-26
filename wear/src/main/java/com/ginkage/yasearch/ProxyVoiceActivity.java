@@ -59,7 +59,7 @@ public class ProxyVoiceActivity extends VoiceActivity
 
     @Override
     public void onRecognitionError(String message) {
-        setText(message, false, false);
+        setText(message, false, true);
         if (mVoiceRecorder != null) {
             mVoiceRecorder.stopRecording();
             mListening = false;
