@@ -250,8 +250,6 @@ public class YaSearchService extends WearableListenerService {
                                      InputStream inputStream,
                                      InputStream in,
                                      OutputStream out) throws IOException {
-        Log.i(TAG, "Send data from mic, streaming mode");
-
         int len;
         int bufferSize = 4096;
         byte[] buffer = new byte[bufferSize];
@@ -262,6 +260,7 @@ public class YaSearchService extends WearableListenerService {
                     .build(), out);
             String response = readDataResponse(googleApiClient, nodeId, in);
             if (response != null) {
+                Log.i(TAG, "Got response");
                 return response;
             }
         }
@@ -330,7 +329,10 @@ public class YaSearchService extends WearableListenerService {
                         "/yask/channel_ready", null)
                         .setResultCallback(MESSAGE_CALLBACK);
 
+                Log.i(TAG, "Send data from mic, streaming mode");
                 String message = sendStreamingData(googleApiClient, nodeId, inputStream, in, out);
+
+                Log.i(TAG, "Send result");
                 Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
                         "/yask/result", message.getBytes())
                         .setResultCallback(MESSAGE_CALLBACK);
@@ -413,8 +415,6 @@ public class YaSearchService extends WearableListenerService {
 
     private void sendCommonData(InputStream inputStream, OutputStream out)
             throws IOException, XmlPullParserException {
-        Log.i(TAG, "Send data from mic, common mode");
-
         int len;
         byte[] buffer = new byte[4096];
         while ((len = inputStream.read(buffer)) != -1) {
@@ -452,10 +452,14 @@ public class YaSearchService extends WearableListenerService {
             Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
                     "/yask/channel_ready", null)
                     .setResultCallback(MESSAGE_CALLBACK);
+
+            Log.i(TAG, "Send data from mic, common mode");
             sendCommonData(inputStream, out);
 
             Log.i(TAG, "Read response");
             String response = processXMLResult(in);
+
+            Log.i(TAG, "Send result");
             Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
                     "/yask/result", response.getBytes())
                     .setResultCallback(MESSAGE_CALLBACK);
@@ -480,12 +484,14 @@ public class YaSearchService extends WearableListenerService {
             public void run() {
                 if (!tryStreamingMode(googleApiClient, nodeId, inputStream)) {
                     if (!tryCommonMode(googleApiClient, nodeId, inputStream)) {
+                        Log.i(TAG, "Sent an error");
                         Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
                                 "/yask/result", "Error: Couldn't connect to server".getBytes())
                                 .setResultCallback(MESSAGE_CALLBACK);
                     }
                 }
 
+                Log.i(TAG, "Closing the channel");
                 channel.close(googleApiClient).setResultCallback(EMPTY_CALLBACK);
                 googleApiClient.disconnect();
             }
@@ -494,11 +500,11 @@ public class YaSearchService extends WearableListenerService {
 
     @Override
     public void onChannelOpened(Channel channel) {
+        Log.i(TAG, "Opened the channel");
         final String nodeId = channel.getNodeId();
         new AsyncTask<Channel, Void, Void>() {
             @Override
             protected Void doInBackground(Channel... params) {
-                Log.i(TAG, "Created the client");
                 final GoogleApiClient googleApiClient =
                         new GoogleApiClient.Builder(YaSearchService.this)
                                 .addApi(Wearable.API)
