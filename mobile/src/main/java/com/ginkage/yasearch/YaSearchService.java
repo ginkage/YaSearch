@@ -152,7 +152,9 @@ public class YaSearchService extends WearableListenerService {
 
         if (endOfUtt) {
             if (bestResult == null) {
-                bestResult = "Sorry, didn't catch that";
+                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                        "/yask/error", "Error: Couldn't connect to server".getBytes())
+                        .setResultCallback(MESSAGE_CALLBACK);
             }
             return bestResult;
         }
@@ -300,7 +302,7 @@ public class YaSearchService extends WearableListenerService {
                     } else if (name.equals("recognitionResults")) {
                         String success = myParser.getAttributeValue(null, "success");
                         if (Integer.parseInt(success) == 0) {
-                            bestVariant = "Sorry, didn't catch that";
+                            return null;
                         }
                     }
                     break;
@@ -325,10 +327,6 @@ public class YaSearchService extends WearableListenerService {
                     break;
             }
             event = myParser.next();
-        }
-
-        if (bestVariant == null) {
-            bestVariant = "Couldn't parse results";
         }
 
         return bestVariant;
@@ -375,9 +373,15 @@ public class YaSearchService extends WearableListenerService {
             String response = processXMLResult(in);
 
             Log.i(TAG, "Send result");
-            Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                    "/yask/result", response.getBytes())
-                    .setResultCallback(MESSAGE_CALLBACK);
+            if (response == null) {
+                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                        "/yask/error", "Error: Couldn't connect to server".getBytes())
+                        .setResultCallback(MESSAGE_CALLBACK);
+            } else {
+                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                        "/yask/result", response.getBytes())
+                        .setResultCallback(MESSAGE_CALLBACK);
+            }
         } catch (IOException | XmlPullParserException e) {
             Log.i(TAG, "Common mode failed", e);
         }
