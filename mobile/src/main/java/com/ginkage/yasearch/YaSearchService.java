@@ -33,12 +33,14 @@ import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.RunnableFuture;
 
 public class YaSearchService extends WearableListenerService {
     private static String TAG = "YaSearchService";
     private static String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
-    private static String UUID =    "ae1669bbf297462ba7dc89da0213b401";
     private static String SEARCH_URL = "https://yandex.ru/search/xml?" +
             "user=ginkage&key=03.12783281:7a4ce2d242c21697a74b02e4b2c74bd0";
 
@@ -141,76 +143,7 @@ public class YaSearchService extends WearableListenerService {
         }
     }
 
-    private void processRecognition(final GoogleApiClient googleApiClient,
-                                    final String nodeId,
-                                    final byte[] data) {
-        try {
-            XmlPullParserFactory xmlFactoryObject = XmlPullParserFactory.newInstance();
-            XmlPullParser myParser = xmlFactoryObject.newPullParser();
-            myParser.setInput(new ByteArrayInputStream(data), null);
-
-            int event = myParser.getEventType();
-            boolean variant = false;
-            String bestVariant = null;
-            String curVariant = null;
-            double bestConfidence = -Double.MAX_VALUE;
-            double curConfidence = -Double.MAX_VALUE;
-
-            while (event != XmlPullParser.END_DOCUMENT) {
-                String name = myParser.getName();
-                switch (event){
-                    case XmlPullParser.START_TAG:
-                        if (name.equals("variant")) {
-                            variant = true;
-                            curVariant = null;
-                            curConfidence = -2;
-                            String confidence = myParser.getAttributeValue(null, "confidence");
-                            if (confidence != null) {
-                                curConfidence = Double.parseDouble(confidence);
-                            }
-                        } else if (name.equals("recognitionResults")) {
-                            String success = myParser.getAttributeValue(null, "success");
-                            if (Integer.parseInt(success) == 0) {
-                                bestVariant = "Sorry, didn't catch that";
-                            }
-                        }
-                        break;
-
-                    case XmlPullParser.TEXT:
-                        if (variant) {
-                            curVariant = myParser.getText();
-                        }
-                        break;
-
-                    case XmlPullParser.END_TAG:
-                        if (name.equals("variant")) {
-                            variant = false;
-                            Log.i(TAG, "confidence: " + curConfidence + " : " + curVariant);
-                            if (curConfidence > bestConfidence && curVariant != null) {
-                                bestVariant = curVariant;
-                                bestConfidence = curConfidence;
-                            }
-                        }
-                        break;
-                }
-                event = myParser.next();
-            }
-
-            if (bestVariant == null) {
-                bestVariant = "Couldn't parse results";
-            }
-
-            Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                    "/yask/result", bestVariant.getBytes())
-                    .setResultCallback(MESSAGE_CALLBACK);
-//            doSearch(googleApiClient, nodeId, bestVariant);
-        } catch (XmlPullParserException | IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private String getResponse(InputStream in) throws IOException {
-        String response = "";
+    private String getResponse(String response, InputStream in) throws IOException {
         while (true) {
             int c = in.read();
             if (c < 0) {
@@ -231,18 +164,20 @@ public class YaSearchService extends WearableListenerService {
                 return null;
             }
             if (c == '\r') {
-                if (in.read() == '\n') {
+                if (len.startsWith("HTTP")) {
+                    Log.e(TAG, getResponse(len, in));
+                    return null;
+                } else if (in.read() == '\n') {
                     int size = Integer.parseInt(len, 16);
                     byte[] message = new byte[size];
                     int got = in.read(message);
                     if (got < 0) {
-                        maybeLog("End of stream was reached");
+                        Log.e(TAG, "End of stream was reached");
                         return null;
                     }
-                    maybeLog("Got message of size: " + got);
                     return ByteString.copyFrom(message, 0, got);
                 } else {
-                    maybeLog("Unexpected message format: " + len);
+                    Log.e(TAG, "Unexpected message format: " + len);
                     return null;
                 }
             } else {
@@ -251,36 +186,26 @@ public class YaSearchService extends WearableListenerService {
         }
     }
 
-    void maybeLog(String message) {
-        // Log.i(TAG, message);
-    }
-
     private void sendData(VoiceProxy.AddData addData, OutputStream out) throws IOException {
         int size = addData.getSerializedSize();
-        maybeLog("Request size: " + size);
-
         out.write(String.format("%x\r\n", size).getBytes());
         addData.writeTo(out);
         out.flush();
     }
 
-    private boolean readDataResponse(GoogleApiClient googleApiClient,
-                                     String nodeId,
-                                     InputStream in)
+    private String readDataResponse(GoogleApiClient googleApiClient, String nodeId, InputStream in)
             throws IOException {
         boolean endOfUtt = false;
         ByteString message = getMessage(in);
         VoiceProxy.AddDataResponse response = VoiceProxy.AddDataResponse.parseFrom(message);
-        maybeLog("Response code: " + response.getResponseCode().getNumber());
+        if (response.getResponseCode() != VoiceProxy.ConnectionResponse.ResponseCode.OK) {
+            return null;
+        }
+
         if (response.hasEndOfUtt()) {
-            maybeLog("EndOfUTT: " + response.getEndOfUtt());
             endOfUtt = response.getEndOfUtt();
         }
-        if (response.hasMessagesCount()) {
-            maybeLog("Messages: " + response.getMessagesCount());
-        }
         List<VoiceProxy.Result> results = response.getRecognitionList();
-        maybeLog("Results count: " + results.size());
 
         String bestResult = null;
         float bestConfidence = 0;
@@ -288,13 +213,10 @@ public class YaSearchService extends WearableListenerService {
             float curConfidence = result.getConfidence();
             String curResult = "";
             if (result.hasNormalized()) {
-                maybeLog("Normalized: " + result.getNormalized());
                 curResult = result.getNormalized();
             } else {
                 List<VoiceProxy.Word> words = result.getWordsList();
-                maybeLog("Confidence: " + result.getConfidence() + ", words: " + words.size());
                 for (VoiceProxy.Word word : words) {
-                    maybeLog("Confidence: " + word.getConfidence() + ", word: " + word.getValue());
                     if (curResult.length() > 0) {
                         curResult += " ";
                         curResult += word.getValue();
@@ -307,26 +229,29 @@ public class YaSearchService extends WearableListenerService {
             }
         }
 
-        if (endOfUtt && bestResult == null) {
-            bestResult = "Sorry, didn't catch that";
+        if (endOfUtt) {
+            if (bestResult == null) {
+                bestResult = "Sorry, didn't catch that";
+            }
+            return bestResult;
         }
 
         if (bestResult != null) {
             Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                    (endOfUtt ? "/yask/result" : "/yask/partial"), bestResult.getBytes())
+                    "/yask/partial", bestResult.getBytes())
                     .setResultCallback(MESSAGE_CALLBACK);
         }
 
-        return endOfUtt;
+        return null;
     }
 
-    private void sendStreamingData(GoogleApiClient googleApiClient,
-                                   String nodeId,
-                                   InputStream inputStream,
-                                   InputStream in,
-                                   OutputStream out)
-            throws IOException {
-        maybeLog("Start sending data from mic");
+    private String sendStreamingData(GoogleApiClient googleApiClient,
+                                     String nodeId,
+                                     InputStream inputStream,
+                                     InputStream in,
+                                     OutputStream out) throws IOException {
+        Log.i(TAG, "Send data from mic, streaming mode");
+
         int len;
         int bufferSize = 4096;
         byte[] buffer = new byte[bufferSize];
@@ -335,33 +260,26 @@ public class YaSearchService extends WearableListenerService {
                     .setAudioData(ByteString.copyFrom(buffer, 0, len))
                     .setLastChunk(false)
                     .build(), out);
-            if (readDataResponse(googleApiClient, nodeId, in)) {
-                return;
+            String response = readDataResponse(googleApiClient, nodeId, in);
+            if (response != null) {
+                return response;
             }
         }
 
         sendData(VoiceProxy.AddData.newBuilder()
                 .setLastChunk(true)
                 .build(), out);
-        readDataResponse(googleApiClient, nodeId, in);
+        return readDataResponse(googleApiClient, nodeId, in);
     }
 
-    private boolean tryStreamingMode(GoogleApiClient googleApiClient,
-                                     String nodeId,
-                                     InputStream inputStream)
-            throws IOException {
-        Socket socket = new Socket("asr.yandex.net", 80);
-        InputStream in = socket.getInputStream();
-        OutputStream out = socket.getOutputStream();
-
+    private boolean startStreamingMode(InputStream in, OutputStream out) throws IOException {
         out.write(("GET /asr_partial_checked HTTP/1.1\r\n" +
                 "User-Agent: yawear\r\n" +
                 "Host: asr.yandex.net:80\r\n" +
                 "Upgrade: asr_dictation\r\n\r\n").getBytes());
         out.flush();
 
-        String reply = getResponse(in);
-        maybeLog("Got response: " + reply);
+        String reply = getResponse("", in);
         if (!reply.startsWith("HTTP/1.1 101 Switching Protocols")) {
             return false;
         }
@@ -369,7 +287,7 @@ public class YaSearchService extends WearableListenerService {
         VoiceProxy.ConnectionRequest request = VoiceProxy.ConnectionRequest.newBuilder()
                 .setSpeechkitVersion("")
                 .setServiceName("asr_dictation")
-                .setUuid(UUID)
+                .setUuid(UUID.randomUUID().toString().replaceAll("-", ""))
                 .setApiKey(API_KEY)
                 .setApplicationName("yawear")
                 .setDevice("Android Wear")
@@ -378,95 +296,198 @@ public class YaSearchService extends WearableListenerService {
                 .setLang("ru-RU")
                 .setFormat("audio/x-pcm;bit=16;rate=16000")
                 .build();
-        int size = request.getSerializedSize();
-        maybeLog("Request size: " + size);
 
+        int size = request.getSerializedSize();
         out.write(String.format("%x\r\n", size).getBytes());
         request.writeTo(out);
         out.flush();
 
         ByteString message = getMessage(in);
-        VoiceProxy.ConnectionResponse response = VoiceProxy.ConnectionResponse.parseFrom(message);
-        int code = response.getResponseCode().getNumber();
-        String sessionId = response.getSessionId();
-        maybeLog("Response code: " + code + ", SessionID: " + sessionId);
-        if (response.hasMessage()) {
-            maybeLog("Message: " + response.getMessage());
+        if (message == null) {
+            return false;
         }
 
-        Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                "/yask/channel_ready", null)
-                .setResultCallback(MESSAGE_CALLBACK);
+        VoiceProxy.ConnectionResponse response = VoiceProxy.ConnectionResponse.parseFrom(message);
+        return (response.getResponseCode() == VoiceProxy.ConnectionResponse.ResponseCode.OK);
+    }
 
-        // We can't go back once we start reading data from inputStream.
+    private boolean tryStreamingMode(GoogleApiClient googleApiClient,
+                                     String nodeId,
+                                     InputStream inputStream) {
+        Socket socket = null;
+        boolean result = false;
+
         try {
-            sendStreamingData(googleApiClient, nodeId, inputStream, in, out);
+            socket = new Socket("asr.yandex.net", 80);
+            InputStream in = new BufferedInputStream(socket.getInputStream());
+            OutputStream out = new BufferedOutputStream(socket.getOutputStream());
+
+            if (startStreamingMode(in, out)) {
+                // We can't go back once we start reading data from inputStream.
+                result = true;
+
+                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                        "/yask/channel_ready", null)
+                        .setResultCallback(MESSAGE_CALLBACK);
+
+                String message = sendStreamingData(googleApiClient, nodeId, inputStream, in, out);
+                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                        "/yask/result", message.getBytes())
+                        .setResultCallback(MESSAGE_CALLBACK);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return true;
+        if (socket != null) {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return result;
+    }
+
+    private String processXMLResult(InputStream in) throws IOException, XmlPullParserException {
+        XmlPullParserFactory xmlFactoryObject = XmlPullParserFactory.newInstance();
+        XmlPullParser myParser = xmlFactoryObject.newPullParser();
+        myParser.setInput(in, null);
+
+        int event = myParser.getEventType();
+        boolean variant = false;
+        String bestVariant = null;
+        String curVariant = null;
+        double bestConfidence = 0;
+        double curConfidence = 0;
+
+        while (event != XmlPullParser.END_DOCUMENT) {
+            String name = myParser.getName();
+            switch (event){
+                case XmlPullParser.START_TAG:
+                    if (name.equals("variant")) {
+                        variant = true;
+                        curVariant = null;
+                        curConfidence = -2;
+                        String confidence = myParser.getAttributeValue(null, "confidence");
+                        if (confidence != null) {
+                            curConfidence = Double.parseDouble(confidence);
+                        }
+                    } else if (name.equals("recognitionResults")) {
+                        String success = myParser.getAttributeValue(null, "success");
+                        if (Integer.parseInt(success) == 0) {
+                            bestVariant = "Sorry, didn't catch that";
+                        }
+                    }
+                    break;
+
+                case XmlPullParser.TEXT:
+                    if (variant) {
+                        curVariant = myParser.getText();
+                    }
+                    break;
+
+                case XmlPullParser.END_TAG:
+                    if (name.equals("variant")) {
+                        variant = false;
+                        Log.i(TAG, "confidence: " + curConfidence + " : " + curVariant);
+                        if (curVariant != null) {
+                            if (bestVariant == null || curConfidence > bestConfidence) {
+                                bestVariant = curVariant;
+                                bestConfidence = curConfidence;
+                            }
+                        }
+                    }
+                    break;
+            }
+            event = myParser.next();
+        }
+
+        if (bestVariant == null) {
+            bestVariant = "Couldn't parse results";
+        }
+
+        return bestVariant;
+    }
+
+    private void sendCommonData(InputStream inputStream, OutputStream out)
+            throws IOException, XmlPullParserException {
+        Log.i(TAG, "Send data from mic, common mode");
+
+        int len;
+        byte[] buffer = new byte[4096];
+        while ((len = inputStream.read(buffer)) != -1) {
+            out.write(buffer, 0, len);
+        }
+    }
+
+    private boolean tryCommonMode(GoogleApiClient googleApiClient,
+                                  String nodeId,
+                                  InputStream inputStream) {
+        HttpURLConnection urlConnection = null;
+        boolean result = false;
+
+        try {
+            URL url = new URL("http://asr.yandex.net/asr_xml?"
+                    + "uuid=" + UUID.randomUUID().toString().replaceAll("-", "")
+                    + "&key=" + API_KEY + "&topic=queries&lang=ru-RU");
+            Log.i(TAG, "Created URL");
+
+            urlConnection = (HttpURLConnection) url.openConnection();
+            Log.i(TAG, "Opened the connection");
+
+            urlConnection.setDoOutput(true);
+            urlConnection.setRequestMethod("POST");
+            urlConnection.setRequestProperty("Content-Type",
+                    "audio/x-pcm;bit=16;rate=16000");
+            urlConnection.setChunkedStreamingMode(4096);
+
+            InputStream in = new BufferedInputStream(urlConnection.getInputStream());
+            OutputStream out = new BufferedOutputStream(urlConnection.getOutputStream());
+
+            // We can't go back once we start reading data from inputStream.
+            result = true;
+
+            Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                    "/yask/channel_ready", null)
+                    .setResultCallback(MESSAGE_CALLBACK);
+            sendCommonData(inputStream, out);
+
+            Log.i(TAG, "Read response");
+            String response = processXMLResult(in);
+            Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                    "/yask/result", response.getBytes())
+                    .setResultCallback(MESSAGE_CALLBACK);
+        } catch (IOException | XmlPullParserException e) {
+            e.printStackTrace();
+        }
+
+        if (urlConnection != null) {
+            urlConnection.disconnect();
+        }
+
+        return result;
     }
 
     private void receiveData(
+            final Channel channel,
             final GoogleApiClient googleApiClient,
             final String nodeId,
             final InputStream inputStream) {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                HttpURLConnection urlConnection = null;
-                try {
-                    if (tryStreamingMode(googleApiClient, nodeId, inputStream)) {
-                        return;
-                    }
-
-                    URL url = new URL("http://asr.yandex.net/asr_xml?" +
-                            "uuid=" + UUID + "&key=" + API_KEY +
-                            "&topic=queries&lang=ru-RU");
-                    Log.i(TAG, "Created URL");
-
-                    urlConnection = (HttpURLConnection) url.openConnection();
-                    Log.i(TAG, "Opened the connection");
-
-                    int len;
-                    int bufferSize = 4096;
-                    byte[] buffer = new byte[bufferSize];
-
-                    urlConnection.setDoOutput(true);
-                    urlConnection.setRequestMethod("POST");
-                    urlConnection.setRequestProperty("Content-Type",
-                            "audio/x-pcm;bit=16;rate=16000");
-                    urlConnection.setChunkedStreamingMode(bufferSize);
-
-                    Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                            "/yask/channel_ready", null)
-                            .setResultCallback(MESSAGE_CALLBACK);
-
-                    Log.i(TAG, "Start sending data from mic");
-                    OutputStream out = new BufferedOutputStream(urlConnection.getOutputStream());
-                    while ((len = inputStream.read(buffer)) != -1) {
-                        out.write(buffer, 0, len);
-                    }
-                    out.close();
-
-                    Log.i(TAG, "Start receiving data");
-                    ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
-                    InputStream in = new BufferedInputStream(urlConnection.getInputStream());
-                    while ((len = in.read(buffer)) != -1) {
-                        byteBuffer.write(buffer, 0, len);
-                    }
-
-                    Log.i(TAG, "Received: " + byteBuffer.toString());
-
-                    processRecognition(googleApiClient, nodeId, byteBuffer.toByteArray());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } finally {
-                    if (urlConnection != null) {
-                        urlConnection.disconnect();
+                if (!tryStreamingMode(googleApiClient, nodeId, inputStream)) {
+                    if (!tryCommonMode(googleApiClient, nodeId, inputStream)) {
+                        Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
+                                "/yask/result", "Error: Couldn't connect to server".getBytes())
+                                .setResultCallback(MESSAGE_CALLBACK);
                     }
                 }
+
+                channel.close(googleApiClient).setResultCallback(EMPTY_CALLBACK);
+                googleApiClient.disconnect();
             }
         }).start();
     }
@@ -491,10 +512,13 @@ public class YaSearchService extends WearableListenerService {
                                 public void onResult(@NonNull Channel.GetInputStreamResult result) {
                                     if (result.getStatus().isSuccess()) {
                                         Log.i(TAG, "Got an input stream");
-                                        receiveData(googleApiClient, nodeId,
-                                                result.getInputStream());
+                                        receiveData(channel, googleApiClient, nodeId,
+                                                new BufferedInputStream(result.getInputStream()));
                                     } else {
                                         Log.e(TAG, "Failed to get input stream");
+                                        channel.close(googleApiClient)
+                                                .setResultCallback(EMPTY_CALLBACK);
+                                        googleApiClient.disconnect();
                                     }
                                 }
                             });
