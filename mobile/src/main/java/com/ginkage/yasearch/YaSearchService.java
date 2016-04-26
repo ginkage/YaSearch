@@ -77,7 +77,7 @@ public class YaSearchService extends WearableListenerService {
                             + "&format=json&pretty=1");
                     Log.i(TAG, "Created URL");
                 } catch (MalformedURLException | UnsupportedEncodingException e) {
-                    e.printStackTrace();
+                    Log.i(TAG, "Failed to search", e);
                     return;
                 }
 
@@ -86,7 +86,7 @@ public class YaSearchService extends WearableListenerService {
                     urlConnection = (HttpURLConnection) url.openConnection();
                     Log.i(TAG, "Opened the connection");
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    Log.i(TAG, "Failed to search", e);
                     return;
                 }
 
@@ -109,7 +109,7 @@ public class YaSearchService extends WearableListenerService {
                             .setResultCallback(MESSAGE_CALLBACK);
                 }
                 catch (IOException e) {
-                    e.printStackTrace();
+                    Log.i(TAG, "Failed to search", e);
                 }
                 finally {
                     urlConnection.disconnect();
@@ -339,14 +339,14 @@ public class YaSearchService extends WearableListenerService {
                         .setResultCallback(MESSAGE_CALLBACK);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.i(TAG, "Streaming mode failed", e);
         }
 
         if (socket != null) {
             try {
                 socket.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                Log.i(TAG, "Streaming mode failed", e);
             }
         }
 
@@ -461,7 +461,7 @@ public class YaSearchService extends WearableListenerService {
                     "/yask/result", response.getBytes())
                     .setResultCallback(MESSAGE_CALLBACK);
         } catch (IOException | XmlPullParserException e) {
-            e.printStackTrace();
+            Log.i(TAG, "Common mode failed", e);
         }
 
         if (urlConnection != null) {
