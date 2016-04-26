@@ -280,6 +280,7 @@ public class YaSearchService extends WearableListenerService {
 
         String reply = getResponse("", in);
         if (!reply.startsWith("HTTP/1.1 101 Switching Protocols")) {
+            Log.e(TAG, reply);
             return false;
         }
 
@@ -432,11 +433,7 @@ public class YaSearchService extends WearableListenerService {
             URL url = new URL("http://asr.yandex.net/asr_xml?"
                     + "uuid=" + UUID.randomUUID().toString().replaceAll("-", "")
                     + "&key=" + API_KEY + "&topic=queries&lang=ru-RU");
-            Log.i(TAG, "Created URL");
-
             urlConnection = (HttpURLConnection) url.openConnection();
-            Log.i(TAG, "Opened the connection");
-
             urlConnection.setDoOutput(true);
             urlConnection.setRequestMethod("POST");
             urlConnection.setRequestProperty("Content-Type",
