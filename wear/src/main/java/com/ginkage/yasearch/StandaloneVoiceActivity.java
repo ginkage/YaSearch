@@ -1,16 +1,34 @@
 package com.ginkage.yasearch;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Bundle;
+import android.speech.RecognizerIntent;
 import android.support.v4.app.ActivityCompat;
 import android.view.View;
+
+import java.util.ArrayList;
 
 import ru.yandex.speechkit.Error;
 import ru.yandex.speechkit.Recognition;
 import ru.yandex.speechkit.Recognizer;
 import ru.yandex.speechkit.RecognizerListener;
+import ru.yandex.speechkit.SpeechKit;
 
 public class StandaloneVoiceActivity extends VoiceActivity implements RecognizerListener {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        if (mStartForResult) {
+            SpeechKit speechKit = SpeechKit.getInstance();
+            speechKit.configure(getApplicationContext(), VoiceActivity.API_KEY);
+
+            onPhraseSpotted("", 0);
+        }
+    }
 
     @Override
     public void onPhraseSpotted(String s, int i) {
@@ -75,6 +93,14 @@ public class StandaloneVoiceActivity extends VoiceActivity implements Recognizer
         setText(results.getBestResultText(), false, true);
         setCirclesVisibility(false);
         startPhraseSpotter(true);
+
+        if (mStartForResult) {
+            ArrayList<String> list = new ArrayList<>();
+            list.add(results.getBestResultText());
+            setResult(RESULT_OK, new Intent()
+                    .putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, list));
+            finish();
+        }
     }
 
     @Override
@@ -82,6 +108,11 @@ public class StandaloneVoiceActivity extends VoiceActivity implements Recognizer
         handleError(error);
         setCirclesVisibility(false);
         startPhraseSpotter(true);
+
+        if (mStartForResult) {
+            setResult(RESULT_CANCELED);
+            finish();
+        }
     }
 
 }

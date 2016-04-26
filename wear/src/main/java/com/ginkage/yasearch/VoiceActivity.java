@@ -1,9 +1,11 @@
 package com.ginkage.yasearch;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.speech.RecognizerIntent;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.wearable.activity.WearableActivity;
@@ -18,9 +20,10 @@ import ru.yandex.speechkit.SpeechKit;
 
 public class VoiceActivity extends WearableActivity implements PhraseSpotterListener {
 
-    private static final String API_KEY = "f9c9a742-8c33-4961-9217-f622744b6063";
+    public static final String API_KEY = "f9c9a742-8c33-4961-9217-f622744b6063";
     private static final int REQUEST_PERMISSION_CODE = 1;
 
+    protected boolean mStartForResult;
     protected CirclesAnimationView mCircles;
     protected View mMicBackView;
     private TextView mTextView;
@@ -42,17 +45,24 @@ public class VoiceActivity extends WearableActivity implements PhraseSpotterList
         mCircles.setVisibility(View.GONE);
         mSpotting = false;
 
-        SpeechKit speechKit = SpeechKit.getInstance();
-        speechKit.configure(getApplicationContext(), API_KEY);
+        Intent intent = getIntent();
+        if (intent != null && RecognizerIntent.ACTION_RECOGNIZE_SPEECH.equals(intent.getAction())) {
+            mStartForResult = true;
+        }
 
-        PhraseSpotterModel model = new PhraseSpotterModel("phrase-spotter/yandex");
-        Error loadResult = model.load();
-        if (loadResult.getCode() != Error.ERROR_OK) {
-            handleError(loadResult);
-        } else {
-            PhraseSpotter.setListener(this);
-            Error setModelResult = PhraseSpotter.setModel(model);
-            handleError(setModelResult);
+        if (!mStartForResult) {
+            SpeechKit speechKit = SpeechKit.getInstance();
+            speechKit.configure(getApplicationContext(), API_KEY);
+
+            PhraseSpotterModel model = new PhraseSpotterModel("phrase-spotter/yandex");
+            Error loadResult = model.load();
+            if (loadResult.getCode() != Error.ERROR_OK) {
+                handleError(loadResult);
+            } else {
+                PhraseSpotter.setListener(this);
+                Error setModelResult = PhraseSpotter.setModel(model);
+                handleError(setModelResult);
+            }
         }
     }
 
@@ -75,13 +85,17 @@ public class VoiceActivity extends WearableActivity implements PhraseSpotterList
     @Override
     protected void onPause() {
         super.onPause();
-        handleError(PhraseSpotter.stop());
+        if (!mStartForResult) {
+            handleError(PhraseSpotter.stop());
+        }
     }
 
     @Override
     public void onPhraseSpotted(String s, int i) {
         setText(getString(R.string.phrase_spotted), false, false);
-        PhraseSpotter.stop();
+        if (!mStartForResult) {
+            PhraseSpotter.stop();
+        }
     }
 
     @Override
@@ -132,7 +146,7 @@ public class VoiceActivity extends WearableActivity implements PhraseSpotterList
                         requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
                                 REQUEST_PERMISSION_CODE);
                     }
-                } else {
+                } else if (!mStartForResult) {
                     Error startResult = PhraseSpotter.start();
                     if (startResult.getCode() == Error.ERROR_OK) {
                         mSpotting = true;

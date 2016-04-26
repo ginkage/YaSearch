@@ -1,9 +1,12 @@
 package com.ginkage.yasearch;
 
+import android.content.Intent;
 import android.os.Bundle;
+import android.speech.RecognizerIntent;
 import android.view.View;
 
 import java.io.OutputStream;
+import java.util.ArrayList;
 
 public class ProxyVoiceActivity extends VoiceActivity
         implements VoiceSender.ResultListener, VoiceRecorder.RecordingListener {
@@ -18,6 +21,10 @@ public class ProxyVoiceActivity extends VoiceActivity
         super.onCreate(savedInstanceState);
         mVoiceSender = new VoiceSender(this, this);
         mResult = null;
+
+        if (mStartForResult) {
+            onPhraseSpotted("", 0);
+        }
     }
 
     @Override
@@ -48,6 +55,16 @@ public class ProxyVoiceActivity extends VoiceActivity
         } else {
             startPhraseSpotter(true);
         }
+    }
+
+    @Override
+    public void onRecognitionError(String message) {
+        setText(message, false, false);
+        if (mVoiceRecorder != null) {
+            mVoiceRecorder.stopRecording();
+            mListening = false;
+        }
+        resetState();
     }
 
     @Override
@@ -98,6 +115,18 @@ public class ProxyVoiceActivity extends VoiceActivity
         mVoiceSender.shutdownChannel();
         setCirclesVisibility(false);
         startPhraseSpotter(true);
+
+        if (mStartForResult) {
+            if (mResult == null) {
+                setResult(RESULT_CANCELED);
+            } else {
+                ArrayList<String> list = new ArrayList<>();
+                list.add(mResult);
+                setResult(RESULT_OK, new Intent()
+                        .putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, list));
+            }
+            finish();
+        }
     }
 
 }

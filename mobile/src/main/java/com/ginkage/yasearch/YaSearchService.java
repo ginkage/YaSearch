@@ -35,7 +35,7 @@ public class YaSearchService extends WearableListenerService {
     private static final String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
     private static final String FORMAT = "audio/x-pcm;bit=16;rate=16000";
     private static final String TOPIC = "queries";
-    private static final String LANG = "ru-RU";
+    private static final String LANG = "en-US";
     private static final String COMMON_HOST = "asr.yandex.net";
     private static final String COMMON_PATH = "/asr_xml";
     private static final String STREAM_HOST = "asr.yandex.net";
@@ -401,7 +401,7 @@ public class YaSearchService extends WearableListenerService {
                     if (!tryCommonMode(googleApiClient, nodeId, inputStream)) {
                         Log.i(TAG, "Sent an error");
                         Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                                "/yask/result", "Error: Couldn't connect to server".getBytes())
+                                "/yask/error", "Error: Couldn't connect to server".getBytes())
                                 .setResultCallback(MESSAGE_CALLBACK);
                     }
                 }

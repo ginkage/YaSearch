@@ -34,6 +34,8 @@ public class VoiceSender {
          */
         void onChannelReady(OutputStream stream, String message);
 
+        void onRecognitionError(String message);
+
         void onRecognitionResult(String result, boolean partial);
     }
 
@@ -76,6 +78,8 @@ public class VoiceSender {
                 String path = messageEvent.getPath();
                 if (path.endsWith("/channel_ready")) {
                     mListener.onChannelReady(mDataStream, "Listening");
+                } else if (path.endsWith("/error")) {
+                    mListener.onRecognitionError(new String(messageEvent.getData()));
                 } else if (path.endsWith("/partial") || path.endsWith("/result")) {
                     mListener.onRecognitionResult(
                             new String(messageEvent.getData()), path.endsWith("/result"));
