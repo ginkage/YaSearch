@@ -13,36 +13,36 @@ import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableListenerService;
 import com.google.protobuf.ByteString;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.URL;
-import java.net.URLEncoder;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.RunnableFuture;
 
 public class YaSearchService extends WearableListenerService {
-    private static String TAG = "YaSearchService";
-    private static String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
-    private static String SEARCH_URL = "https://yandex.ru/search/xml?" +
-            "user=ginkage&key=03.12783281:7a4ce2d242c21697a74b02e4b2c74bd0";
+
+    private static final String TAG = "YaSearchService";
+    private static final String UUID_KEY = UUID.randomUUID().toString().replaceAll("-", "");
+    private static final String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
+    private static final String FORMAT = "audio/x-pcm;bit=16;rate=16000";
+    private static final String TOPIC = "queries";
+    private static final String LANG = "ru-RU";
+    private static final String COMMON_HOST = "asr.yandex.net";
+    private static final String COMMON_PATH = "/asr_xml";
+    private static final String STREAM_HOST = "asr.yandex.net";
+    private static final String STREAM_PATH = "/asr_partial";
+    private static final String STREAM_SERVICE = "asr_dictation";
+    private static final String STREAM_AGENT = "yawear";
+    private static final int BUFFER_SIZE = 5120;
 
     private static final ResultCallback<Status> EMPTY_CALLBACK =
             new ResultCallback<Status>() {
@@ -63,85 +63,6 @@ public class YaSearchService extends WearableListenerService {
                     }
                 }
             };
-
-    public void doSearch(final GoogleApiClient googleApiClient,
-                           final String nodeId,
-                           final String query) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                URL url;
-                try {
-                    url = new URL("http://api.duckduckgo.com/"
-                            + "?q=" + URLEncoder.encode(query, "UTF-8")
-                            + "&format=json&pretty=1");
-                    Log.i(TAG, "Created URL");
-                } catch (MalformedURLException | UnsupportedEncodingException e) {
-                    Log.i(TAG, "Failed to search", e);
-                    return;
-                }
-
-                HttpURLConnection urlConnection;
-                try {
-                    urlConnection = (HttpURLConnection) url.openConnection();
-                    Log.i(TAG, "Opened the connection");
-                } catch (IOException e) {
-                    Log.i(TAG, "Failed to search", e);
-                    return;
-                }
-
-                try {
-                    int len;
-                    int bufferSize = 4096;
-                    byte[] buffer = new byte[bufferSize];
-
-                    Log.i(TAG, "Start receiving data");
-                    ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
-                    InputStream in = new BufferedInputStream(urlConnection.getInputStream());
-                    while ((len = in.read(buffer)) != -1) {
-                        byteBuffer.write(buffer, 0, len);
-                    }
-
-                    Log.i(TAG, "Received: " + byteBuffer.toString());
-                    String result = extractSearchResult(byteBuffer.toString());
-                    Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                            "/yask/result", result.getBytes())
-                            .setResultCallback(MESSAGE_CALLBACK);
-                }
-                catch (IOException e) {
-                    Log.i(TAG, "Failed to search", e);
-                }
-                finally {
-                    urlConnection.disconnect();
-                }
-            }
-        }).start();
-    }
-
-    private String extractSearchResult(String json) throws IOException {
-        Log.d(TAG, "Search JSON size: " + json.length() + " chars");
-        try {
-            JSONObject root = new JSONObject(json);
-            String abstr = root.getString("Abstract");
-            if (abstr != null && !abstr.isEmpty()) {
-                return abstr;
-            }
-            JSONArray arrayOfResults = root.getJSONArray("RelatedTopics");
-            if (arrayOfResults != null
-                    && arrayOfResults.length() > 0
-                    && arrayOfResults.getJSONObject(0) != null
-                    && arrayOfResults.getJSONObject(0).getString("Text") != null) {
-                JSONObject firstEntry = arrayOfResults.getJSONObject(0);
-                return firstEntry.getString("Text").isEmpty()
-                        ? "no search results"
-                        : firstEntry.getString("Text");
-            }
-
-            return "no search results";
-        } catch (JSONException e) {
-            throw new IOException(e);
-        }
-    }
 
     private String getResponse(String response, InputStream in) throws IOException {
         while (true) {
@@ -251,8 +172,7 @@ public class YaSearchService extends WearableListenerService {
                                      InputStream in,
                                      OutputStream out) throws IOException {
         int len;
-        int bufferSize = 4096;
-        byte[] buffer = new byte[bufferSize];
+        byte[] buffer = new byte[BUFFER_SIZE];
         while ((len = inputStream.read(buffer)) != -1) {
             sendData(VoiceProxy.AddData.newBuilder()
                     .setAudioData(ByteString.copyFrom(buffer, 0, len))
@@ -272,10 +192,10 @@ public class YaSearchService extends WearableListenerService {
     }
 
     private boolean startStreamingMode(InputStream in, OutputStream out) throws IOException {
-        out.write(("GET /asr_partial_checked HTTP/1.1\r\n" +
-                "User-Agent: yawear\r\n" +
-                "Host: asr.yandex.net:80\r\n" +
-                "Upgrade: asr_dictation\r\n\r\n").getBytes());
+        out.write(("GET " + STREAM_PATH + " HTTP/1.1\r\n" +
+                "User-Agent: " + STREAM_AGENT + "\r\n" +
+                "Host: " + STREAM_HOST + "\r\n" +
+                "Upgrade: " + STREAM_SERVICE + "\r\n\r\n").getBytes());
         out.flush();
 
         String reply = getResponse("", in);
@@ -286,15 +206,15 @@ public class YaSearchService extends WearableListenerService {
 
         VoiceProxy.ConnectionRequest request = VoiceProxy.ConnectionRequest.newBuilder()
                 .setSpeechkitVersion("")
-                .setServiceName("asr_dictation")
-                .setUuid(UUID.randomUUID().toString().replaceAll("-", ""))
+                .setServiceName(STREAM_SERVICE)
+                .setUuid(UUID_KEY)
                 .setApiKey(API_KEY)
-                .setApplicationName("yawear")
+                .setApplicationName(STREAM_AGENT)
                 .setDevice("Android Wear")
                 .setCoords("0, 0")
-                .setTopic("queries")
-                .setLang("ru-RU")
-                .setFormat("audio/x-pcm;bit=16;rate=16000")
+                .setTopic(TOPIC)
+                .setLang(LANG)
+                .setFormat(FORMAT)
                 .build();
 
         int size = request.getSerializedSize();
@@ -318,7 +238,7 @@ public class YaSearchService extends WearableListenerService {
         boolean result = false;
 
         try {
-            socket = new Socket("asr.yandex.net", 80);
+            socket = new Socket(STREAM_HOST, 80);
             InputStream in = new BufferedInputStream(socket.getInputStream());
             OutputStream out = new BufferedOutputStream(socket.getOutputStream());
 
@@ -417,7 +337,7 @@ public class YaSearchService extends WearableListenerService {
     private void sendCommonData(InputStream inputStream, OutputStream out)
             throws IOException, XmlPullParserException {
         int len;
-        byte[] buffer = new byte[4096];
+        byte[] buffer = new byte[BUFFER_SIZE];
         while ((len = inputStream.read(buffer)) != -1) {
             out.write(buffer, 0, len);
         }
@@ -430,15 +350,13 @@ public class YaSearchService extends WearableListenerService {
         boolean result = false;
 
         try {
-            URL url = new URL("http://asr.yandex.net/asr_xml?"
-                    + "uuid=" + UUID.randomUUID().toString().replaceAll("-", "")
-                    + "&key=" + API_KEY + "&topic=queries&lang=ru-RU");
+            URL url = new URL("http://" + COMMON_HOST + COMMON_PATH +
+                    "?uuid=" + UUID_KEY + "&key=" + API_KEY + "&topic=" + TOPIC + "&lang=" + LANG);
             urlConnection = (HttpURLConnection) url.openConnection();
             urlConnection.setDoOutput(true);
             urlConnection.setRequestMethod("POST");
-            urlConnection.setRequestProperty("Content-Type",
-                    "audio/x-pcm;bit=16;rate=16000");
-            urlConnection.setChunkedStreamingMode(4096);
+            urlConnection.setRequestProperty("Content-Type", FORMAT);
+            urlConnection.setChunkedStreamingMode(BUFFER_SIZE);
 
             InputStream in = new BufferedInputStream(urlConnection.getInputStream());
             OutputStream out = new BufferedOutputStream(urlConnection.getOutputStream());

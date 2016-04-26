@@ -118,36 +118,46 @@ public class VoiceActivity extends WearableActivity implements PhraseSpotterList
         }
     }
 
-    protected void startPhraseSpotter(boolean request) {
+    protected void startPhraseSpotter(final boolean request) {
         if (mSpotting) {
             return;
         }
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED) {
-            if (request && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
-                        REQUEST_PERMISSION_CODE);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (ContextCompat.checkSelfPermission(VoiceActivity.this,
+                        Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    if (request && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
+                                REQUEST_PERMISSION_CODE);
+                    }
+                } else {
+                    Error startResult = PhraseSpotter.start();
+                    if (startResult.getCode() == Error.ERROR_OK) {
+                        mSpotting = true;
+                    } else {
+                        handleError(startResult);
+                    }
+                }
             }
-        } else {
-            Error startResult = PhraseSpotter.start();
-            if (startResult.getCode() == Error.ERROR_OK) {
-                mSpotting = true;
-            } else {
-                handleError(startResult);
-            }
-        }
+        });
     }
 
-    protected void setCirclesVisibility(boolean visible) {
-        if (visible) {
-            mCircles.setVisibility(View.VISIBLE);
-            mCircles.setImage(mMicView);
-        } else {
-            mCircles.setVisibility(View.GONE);
-        }
+    protected void setCirclesVisibility(final boolean visible) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (visible) {
+                    mCircles.setVisibility(View.VISIBLE);
+                    mCircles.setImage(mMicView);
+                } else {
+                    mCircles.setVisibility(View.GONE);
+                }
 
-        mCircles.setPlaying(visible);
+                mCircles.setPlaying(visible);
+            }
+        });
     }
 
     protected void setText(final String text, final boolean listening, boolean results) {

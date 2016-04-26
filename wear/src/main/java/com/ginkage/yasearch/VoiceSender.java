@@ -1,9 +1,9 @@
 package com.ginkage.yasearch;
 
 import android.content.Context;
-import android.content.Intent;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
@@ -23,16 +23,19 @@ import java.io.OutputStream;
 import java.util.Set;
 
 public class VoiceSender {
-    public interface SetupResultListener {
+
+    private static final String TAG = "VoiceSender";
+
+    public interface ResultListener {
         /**
          * Result of the channel opening attempt.
          * @param stream The stream to write to, or {@code null} if there was an error.
          * @param message The error text, if any.
          */
-        void onResult(OutputStream stream, String message);
-    }
+        void onChannelReady(OutputStream stream, String message);
 
-    public static final String RESULT_ACTION = "com.ginkage.yasearch.RESULT";
+        void onRecognitionResult(String result, boolean partial);
+    }
 
     private static final String YASK_CAPABILITY_NAME = "yandex_speech_kit";
     private static final String YASK_PATH = "/yask";
@@ -52,13 +55,13 @@ public class VoiceSender {
     private String mYaskNodeId;
 
     private final GoogleApiClient mGoogleApiClient;
-    private final SetupResultListener mSetupResult;
+    private final ResultListener mListener;
 
-    public VoiceSender(final Context context, SetupResultListener setupResult) {
+    public VoiceSender(final Context context, ResultListener listener) {
         mGoogleApiClient = new GoogleApiClient.Builder(context)
                 .addApi(Wearable.API)
                 .build();
-        mSetupResult = setupResult;
+        mListener = listener;
 
         mCapabilityListener = new CapabilityApi.CapabilityListener() {
             @Override
@@ -72,12 +75,10 @@ public class VoiceSender {
             public void onMessageReceived(MessageEvent messageEvent) {
                 String path = messageEvent.getPath();
                 if (path.endsWith("/channel_ready")) {
-                    mSetupResult.onResult(mDataStream, "Listening");
+                    mListener.onChannelReady(mDataStream, "Listening");
                 } else if (path.endsWith("/partial") || path.endsWith("/result")) {
-                    Intent i = new Intent(RESULT_ACTION);
-                    i.putExtra("result", messageEvent.getData());
-                    i.putExtra("partial", path.endsWith("/partial"));
-                    context.sendBroadcast(i);
+                    mListener.onRecognitionResult(
+                            new String(messageEvent.getData()), path.endsWith("/result"));
                 }
             }
         };
@@ -103,15 +104,17 @@ public class VoiceSender {
                                 mCapabilityListener, YASK_CAPABILITY_NAME)
                                 .setResultCallback(EMPTY_CALLBACK);
                     } else {
-                        mSetupResult.onResult(null, "Failed to get capability");
+                        mListener.onChannelReady(null, "Failed to get capability");
                     }
+                } else {
+                    mListener.onChannelReady(null, "Failed to connect to the client");
                 }
                 return null;
             }
         }.execute();
     }
 
-    public void shutdownVoiceChannel() {
+    public void shutdownChannel() {
         closeChannel();
 
         Wearable.CapabilityApi.removeCapabilityListener(
@@ -131,7 +134,7 @@ public class VoiceSender {
         if (nodeId != null) {
             openChannel(nodeId);
         } else {
-            mSetupResult.onResult(null, "No connection");
+            mListener.onChannelReady(null, "No connection");
         }
     }
 
@@ -156,7 +159,7 @@ public class VoiceSender {
                             mOutputChannel = result.getChannel();
                             getStream();
                         } else {
-                            mSetupResult.onResult(null, "Failed to open channel");
+                            mListener.onChannelReady(null, "Failed to open channel");
                         }
                     }
                 });
@@ -171,22 +174,21 @@ public class VoiceSender {
                     public void onResult(@NonNull Channel.GetOutputStreamResult result) {
                         if (result.getStatus().isSuccess()) {
                             mDataStream = new BufferedOutputStream(result.getOutputStream());
-//                            mSetupResult.onResult(mDataStream, "Listening");
                         } else {
-                            mSetupResult.onResult(null, "Failed to get output stream");
+                            mListener.onChannelReady(null, "Failed to get output stream");
                         }
                     }
                 });
     }
 
-    private void closeChannel() {
+    public void closeChannel() {
         mYaskNodeId = null;
 
         if (mDataStream != null) {
             try {
                 mDataStream.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                Log.e(TAG, "Failed to close data stream", e);
             }
             mDataStream = null;
         }

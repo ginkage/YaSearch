@@ -15,8 +15,9 @@ import java.io.OutputStream;
  */
 public class VoiceRecorder {
     public interface RecordingListener {
-        void onStreamClosed();
+        void onFinishRecord();
         void onError();
+        void onStreamClosed();
     }
 
     private static final String TAG = "VoiceRecorder";
@@ -30,7 +31,6 @@ public class VoiceRecorder {
 
     private AudioRecord recorder = null;
     private boolean isRecording = false;
-    private int bytesRead;
     private NoiseSuppressor noiseSuppressor = null;
 
     public void startRecording(
@@ -45,6 +45,7 @@ public class VoiceRecorder {
         try {
             noiseSuppressor = NoiseSuppressor.create(recorder.getAudioSessionId());
             if (noiseSuppressor.setEnabled(true) != AudioEffect.SUCCESS)  {
+                noiseSuppressor.release();
                 noiseSuppressor = null;
             } else {
                 Log.d(TAG, "Using noise suppression: " + noiseSuppressor.getDescriptor().uuid);
@@ -54,42 +55,39 @@ public class VoiceRecorder {
             noiseSuppressor = null;
         }
 
-        bytesRead = 0;
         isRecording = true;
         recorder.startRecording();
+
+        Log.i(TAG, "Recording with buffer size=" + RECORDER_BUFFER_SIZE + ", max=" + MAX_LEN);
 
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
+                    int bytesRead = 0;
                     byte[] dataBuffer = new byte[RECORDER_BUFFER_SIZE];
                     while (isRecording) {
                         int read = recorder.read(dataBuffer, 0, RECORDER_BUFFER_SIZE);
                         if (read > 0) {
-                            try {
-                                stream.write(dataBuffer, 0, read);
-                                bytesRead += read;
-                            } catch (IOException e) {
-                                stopRecording();
-                                // recordingListener.onError();
-                                break;
-                            }
+                            stream.write(dataBuffer, 0, read);
+                            bytesRead += read;
                         }
                         if (bytesRead > MAX_LEN) {
                             Log.d(TAG, "buffer size limit " + bytesRead + " reached.");
                             stopRecording();
-                            break;
                         }
                     }
-                } finally {
-                    try {
-                        stream.flush();
-                        stream.close();
-                        recordingListener.onStreamClosed();
-                    } catch (IOException e) {
-                        // ignored;
-                    }
+                    recordingListener.onFinishRecord();
+                    stream.flush();
+                    stream.close();
+                } catch (IOException e) {
+                    // Can only be error in write() or flush()/close().
+                    stopRecording();
+                    Log.e(TAG, "Stream suddenly closed", e);
+                    recordingListener.onError();
                 }
+
+                recordingListener.onStreamClosed();
             }
         }, "AudioRecorder Thread").start();
     }
@@ -97,12 +95,11 @@ public class VoiceRecorder {
     public void stopRecording() {
         Log.d(TAG, "recording ended.");
         isRecording = false;
-        bytesRead = 0;
         if (recorder != null) {
             try {
                 recorder.stop();
             } catch (Throwable t) {
-                t.printStackTrace();
+                Log.e(TAG, "Failed to stop recorder", t);
             }
             if (noiseSuppressor != null) {
                 noiseSuppressor.release();
@@ -111,8 +108,9 @@ public class VoiceRecorder {
             try {
                 recorder.release();
             } catch (Throwable t) {
-                t.printStackTrace();
+                Log.e(TAG, "Failed to release recorder", t);
             }
+            recorder = null;
         }
     }
 }

@@ -1,89 +1,101 @@
 package com.ginkage.yasearch;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.View;
 
 import java.io.OutputStream;
 
 public class ProxyVoiceActivity extends VoiceActivity
-        implements VoiceSender.SetupResultListener, VoiceRecorder.RecordingListener {
+        implements VoiceSender.ResultListener, VoiceRecorder.RecordingListener {
 
     private VoiceSender mVoiceSender;
-
-    private BroadcastReceiver mResultReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action.equals(VoiceSender.RESULT_ACTION)) {
-                byte[] result = intent.getByteArrayExtra("result");
-                String text = new String(result, 0, result.length);
-                if (intent.getBooleanExtra("partial", false)) {
-                    setText(text, true, false);
-                } else {
-                    setText(text, false, true);
-                    mVoiceSender.shutdownVoiceChannel();
-                    setCirclesVisibility(false);
-                    startPhraseSpotter(true);
-                }
-            }
-        }
-    };
+    private VoiceRecorder mVoiceRecorder;
+    private boolean mListening;
+    private String mResult;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mVoiceSender = new VoiceSender(this, this);
+        mResult = null;
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        registerReceiver(mResultReceiver, new IntentFilter(VoiceSender.RESULT_ACTION));
+    public void onPhraseSpotted(String s, int i) {
+        super.onPhraseSpotted(s, i);
+        mResult = null;
+        mListening = false;
+        mVoiceSender.setupVoiceChannel();
     }
 
     @Override
-    protected void onPause() {
-        super.onPause();
-        unregisterReceiver(mResultReceiver);
-    }
-
-    @Override
-    public void onResult(final OutputStream stream, final String message) {
-        setText(message, (stream != null), false);
-        if (stream != null) {
-            final VoiceRecorder recorder = new VoiceRecorder();
-            recorder.startRecording(stream, this);
+    public void onChannelReady(final OutputStream stream, final String message) {
+        mListening = (stream != null);
+        setText(message, mListening, false);
+        if (mListening) {
+            mVoiceRecorder = new VoiceRecorder();
+            mVoiceRecorder.startRecording(stream, this);
             setCirclesVisibility(true);
 
             mMicBackView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     mMicBackView.setOnClickListener(null);
-                    recorder.stopRecording();
+                    mVoiceRecorder.stopRecording();
+                    mListening = false;
                 }
             });
+        } else {
+            startPhraseSpotter(true);
         }
     }
 
     @Override
-    public void onPhraseSpotted(String s, int i) {
-        super.onPhraseSpotted(s, i);
-        mVoiceSender.setupVoiceChannel();
+    public void onRecognitionResult(String text, boolean full) {
+        mResult = text;
+        setText(text, mListening, full);
+        if (full) {
+            if (mVoiceRecorder != null) {
+                mVoiceRecorder.stopRecording();
+                mListening = false;
+            }
+            resetState();
+        }
     }
 
     @Override
-    public void onStreamClosed() {
-        // setText(getString(R.string.bro_common_speech_dialog_ready_button), false, false);
+    public void onFinishRecord() {
+        // We don't read from the mic anymore. What's left is flush and wait.
+
+        if (mResult == null) {
+            setText(getString(R.string.bro_common_speech_dialog_ready_button), false, false);
+        }
     }
 
     @Override
     public void onError() {
-        setText(getString(R.string.spotter_error) + "Couldn't start recording", false, false);
-        mVoiceSender.shutdownVoiceChannel();
+        // Called when the stream closed before we could end reading the audio or flush the data.
+        // Can be either a server error or end-of-speech detection.
+        // If we got a "full" result before this, that's fine.
+        // If we didn't get even a partial result, we have an error.
+
+        if (mResult == null) {
+            setText(getString(R.string.spotter_error) + "Unexpected channel error", false, false);
+            resetState();
+        }
+    }
+
+    @Override
+    public void onStreamClosed() {
+        // Called when the voice recorder stopped listening for whatever reason.
+        mVoiceRecorder = null;
+    }
+
+    private void resetState() {
+        if (mResult != null) {
+            setText(mResult, false, true);
+        }
+        mVoiceSender.shutdownChannel();
         setCirclesVisibility(false);
         startPhraseSpotter(true);
     }
