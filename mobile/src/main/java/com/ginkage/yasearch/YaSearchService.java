@@ -66,6 +66,29 @@ public class YaSearchService extends WearableListenerService {
                 }
             };
 
+    private void sendMessage(GoogleApiClient googleApiClient, String nodeId,
+                             String path, String message) {
+        Wearable.MessageApi.sendMessage(googleApiClient, nodeId, "/yask/" + path,
+                (message == null ? null : message.getBytes()))
+                .setResultCallback(MESSAGE_CALLBACK);
+    }
+
+    private void sendChannelReady(GoogleApiClient googleApiClient, String nodeId) {
+        sendMessage(googleApiClient, nodeId, "channel_ready", null);
+    }
+
+    private void sendPartialResult(GoogleApiClient googleApiClient, String nodeId, String result) {
+        sendMessage(googleApiClient, nodeId, "partial", result);
+    }
+
+    private void sendFinalResult(GoogleApiClient googleApiClient, String nodeId, String result) {
+        sendMessage(googleApiClient, nodeId, "result", result);
+    }
+
+    private void sendError(GoogleApiClient googleApiClient, String nodeId, String error) {
+        sendMessage(googleApiClient, nodeId, "error", error);
+    }
+
     private String getResponse(String response, InputStream in) throws IOException {
         while (true) {
             int c = in.read();
@@ -153,18 +176,9 @@ public class YaSearchService extends WearableListenerService {
         }
 
         if (endOfUtt) {
-            if (bestResult == null) {
-                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                        "/yask/error", "Error: Couldn't connect to server".getBytes())
-                        .setResultCallback(MESSAGE_CALLBACK);
-            }
             return bestResult;
-        }
-
-        if (bestResult != null) {
-            Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                    "/yask/partial", bestResult.getBytes())
-                    .setResultCallback(MESSAGE_CALLBACK);
+        } else if (bestResult != null) {
+            sendPartialResult(googleApiClient, nodeId, bestResult);
         }
 
         return null;
@@ -250,17 +264,17 @@ public class YaSearchService extends WearableListenerService {
                 // We can't go back once we start reading data from inputStream.
                 result = true;
 
-                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                        "/yask/channel_ready", null)
-                        .setResultCallback(MESSAGE_CALLBACK);
+                sendChannelReady(googleApiClient, nodeId);
 
                 Log.i(TAG, "Send data from mic, streaming mode");
                 String message = sendStreamingData(googleApiClient, nodeId, inputStream, in, out);
 
                 Log.i(TAG, "Send result");
-                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                        "/yask/result", message.getBytes())
-                        .setResultCallback(MESSAGE_CALLBACK);
+                if (message == null) {
+                    sendError(googleApiClient, nodeId, "Sorry, didn't catch that");
+                } else {
+                    sendFinalResult(googleApiClient, nodeId, message);
+                }
             }
         } catch (IOException e) {
             Log.i(TAG, "Streaming mode failed", e);
@@ -364,9 +378,7 @@ public class YaSearchService extends WearableListenerService {
             // We can't go back once we start reading data from inputStream.
             result = true;
 
-            Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                    "/yask/channel_ready", null)
-                    .setResultCallback(MESSAGE_CALLBACK);
+            sendChannelReady(googleApiClient, nodeId);
 
             Log.i(TAG, "Send data from mic, common mode");
             sendCommonData(inputStream, out);
@@ -376,13 +388,9 @@ public class YaSearchService extends WearableListenerService {
 
             Log.i(TAG, "Send result");
             if (response == null) {
-                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                        "/yask/error", "Error: Couldn't connect to server".getBytes())
-                        .setResultCallback(MESSAGE_CALLBACK);
+                sendError(googleApiClient, nodeId, "Sorry, didn't catch that");
             } else {
-                Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                        "/yask/result", response.getBytes())
-                        .setResultCallback(MESSAGE_CALLBACK);
+                sendFinalResult(googleApiClient, nodeId, response);
             }
         } catch (IOException | XmlPullParserException e) {
             Log.i(TAG, "Common mode failed", e);
@@ -406,9 +414,7 @@ public class YaSearchService extends WearableListenerService {
                 if (!tryStreamingMode(googleApiClient, nodeId, inputStream)) {
                     if (!tryCommonMode(googleApiClient, nodeId, inputStream)) {
                         Log.i(TAG, "Sent an error");
-                        Wearable.MessageApi.sendMessage(googleApiClient, nodeId,
-                                "/yask/error", "Error: Couldn't connect to server".getBytes())
-                                .setResultCallback(MESSAGE_CALLBACK);
+                        sendError(googleApiClient, nodeId, "Error: Couldn't connect to server");
                     }
                 }
 
