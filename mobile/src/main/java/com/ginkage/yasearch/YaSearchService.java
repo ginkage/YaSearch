@@ -38,10 +38,12 @@ public class YaSearchService extends WearableListenerService {
     private static final String LANG = "en-US";
     private static final String COMMON_HOST = "asr.yandex.net";
     private static final String COMMON_PATH = "/asr_xml";
-    private static final String STREAM_HOST = "asr.yandex.net";
-    private static final String STREAM_PATH = "/asr_partial";
-    private static final String STREAM_SERVICE = "asr_dictation";
-    private static final String STREAM_AGENT = "yawear";
+    private static final String STREAM_HOST = "voice-stream.voicetech.yandex.net";
+    private static final String STREAM_PATH = "/asr_partial_checked";
+    private static final String STREAM_SERVICE = "websocket";
+    private static final String STREAM_AGENT = "KeepAliveClient";
+    private static final String STREAM_APP = "YaWear";
+    private static final String STREAM_DEVICE = "Android Wear";
     private static final int BUFFER_SIZE = 5120;
 
     private static final ResultCallback<Status> EMPTY_CALLBACK =
@@ -211,8 +213,8 @@ public class YaSearchService extends WearableListenerService {
                 .setServiceName(STREAM_SERVICE)
                 .setUuid(UUID_KEY)
                 .setApiKey(API_KEY)
-                .setApplicationName(STREAM_AGENT)
-                .setDevice("Android Wear")
+                .setApplicationName(STREAM_APP)
+                .setDevice(STREAM_DEVICE)
                 .setCoords("0, 0")
                 .setTopic(TOPIC)
                 .setLang(LANG)
