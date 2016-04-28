@@ -33,7 +33,7 @@ public class StreamingSender implements TCPConnection.Callback {
     private static final String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
     private static final String FORMAT = "audio/x-pcm;bit=16;rate=16000";
     private static final String TOPIC = "queries";
-    private static final String LANG = "ru-RU";
+    private static final String LANG = "en-EN";
     private static final String STREAM_HOST = "voice-stream.voicetech.yandex.net";
     private static final String STREAM_PATH = "/asr_partial_checked";
     private static final String STREAM_SERVICE = "websocket";
@@ -92,49 +92,23 @@ public class StreamingSender implements TCPConnection.Callback {
         writeToBuffer(data, size);
 
         if (mState == STATE_UPGRADE) {
-            byte[] end = "\r\n\r\n".getBytes();
-            String message = getHeader(end);
+            String message = getHeader("\r\n\r\n");
             if (message != null) {
-                if (message.startsWith("HTTP/1.1 101 Switching Protocols")) {
-                    onConnectionUpgrade();
-                } else {
-                    onError("Unexpected response: " + message, null);
-                }
-
+                readUpgradeHeader(message);
                 onDataReceived(null, 0);
             }
         } else if (mState == STATE_HANDSHAKE || mState == STATE_SEND || mState == STATE_DONE) {
             if (mExpected <= 0) {
-                byte[] end = "\r\n".getBytes();
-                String message = getHeader(end);
+                String message = getHeader("\r\n");
                 if (message != null) {
-                    if (message.startsWith("HTTP")) {
-                        onError("Bad handshake reply: " + message, null);
-                    } else {
-                        try {
-                            mExpected = Integer.parseInt(
-                                    message.substring(0, message.length() - end.length), 16);
-                            if (mExpected <= 0) {
-                                onError("Strange header: " + message, null);
-                            }
-                        } catch (NumberFormatException e) {
-                            onError("Error parsing message header: " + message, e);
-                        }
-                    }
-
+                    mExpected = readProtoHeader(message);
                     onDataReceived(null, 0);
                 }
             } else if (mSize >= mExpected) {
                 byte[] reply = new byte[mExpected];
                 readFromBuffer(reply, mExpected);
                 mExpected = 0;
-
-                if (mState == STATE_HANDSHAKE) {
-                    onHandshake(reply);
-                } else {
-                    onDataResponse(reply);
-                }
-
+                readProtoData(reply);
                 onDataReceived(null, 0);
             }
         } else {
@@ -142,15 +116,50 @@ public class StreamingSender implements TCPConnection.Callback {
         }
     }
 
-    private void onHandshake(byte[] reply) {
-        Log.i(TAG, "Handshake size: " + reply.length);
+    private void readUpgradeHeader(String message) {
+        if (message.startsWith("HTTP/1.1 101 Switching Protocols")) {
+            onConnectionUpgrade();
+        } else {
+            onError("Unexpected response: " + message, null);
+        }
+    }
+
+    private int readProtoHeader(String message) {
+        if (message.startsWith("HTTP")) {
+            onError("Bad handshake reply: " + message, null);
+        } else {
+            try {
+                int size = Integer.parseInt(message, 16);
+                if (size > 0) {
+                    return size;
+                } else {
+                    onError("Strange header: " + message, null);
+                }
+            } catch (NumberFormatException e) {
+                onError("Error parsing message header: " + message, e);
+            }
+        }
+        return 0;
+    }
+
+    private void readProtoData(byte[] reply) {
+        if (mState == STATE_HANDSHAKE) {
+            readHandshake(reply);
+        } else {
+            readDataResponse(reply);
+        }
+    }
+
+    private void readHandshake(byte[] reply) {
         try {
             VoiceProxy.ConnectionResponse response =
                     VoiceProxy.ConnectionResponse.parseFrom(reply);
 
             if (response.getResponseCode() ==
                     VoiceProxy.ConnectionResponse.ResponseCode.OK) {
-                mState = STATE_SEND;
+                synchronized (mConnection) {
+                    mState = STATE_SEND;
+                }
                 startSendingData();
             } else {
                 onError("Bad response code: "
@@ -164,8 +173,7 @@ public class StreamingSender implements TCPConnection.Callback {
     private void sendData(VoiceProxy.AddData addData) throws IOException {
         int size = addData.getSerializedSize();
         byte[] hdr = String.format("%x\r\n", size).getBytes();
-        byte[] req = addData.toByteArray();
-        byte[] msg = concat(hdr, hdr.length, req, req.length);
+        byte[] msg = concat(hdr, hdr.length, addData.toByteArray(), size);
 
         if (msg != null) {
             synchronized (mConnection) {
@@ -203,7 +211,7 @@ public class StreamingSender implements TCPConnection.Callback {
         }).start();
     }
 
-    private void onDataResponse(byte[] reply) {
+    private void readDataResponse(byte[] reply) {
         try {
             VoiceProxy.AddDataResponse response =
                     VoiceProxy.AddDataResponse.parseFrom(reply);
@@ -276,8 +284,7 @@ public class StreamingSender implements TCPConnection.Callback {
 
         int size = request.getSerializedSize();
         byte[] hdr = String.format("%x\r\n", size).getBytes();
-        byte[] req = request.toByteArray();
-        byte[] msg = concat(hdr, hdr.length, req, req.length);
+        byte[] msg = concat(hdr, hdr.length, request.toByteArray(), size);
 
         if (msg != null) {
             synchronized (mConnection) {
@@ -316,13 +323,14 @@ public class StreamingSender implements TCPConnection.Callback {
         }
     }
 
-    private String getHeader(byte[] end) {
+    private String getHeader(String suffix) {
+        byte[] end = suffix.getBytes();
         int pos = search(mBuffer, mSize, end, end.length);
         if (pos >= 0) {
             pos += end.length;
             byte[] reply = new byte[pos];
             readFromBuffer(reply, pos);
-            return new String(reply);
+            return new String(reply, 0, pos - end.length);
         }
         return null;
     }
