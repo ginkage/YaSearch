@@ -3,6 +3,7 @@ package com.ginkage.yasearch;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
 import android.speech.RecognizerIntent;
@@ -44,6 +45,9 @@ public class VoiceActivity extends WearableActivity implements PhraseSpotterList
         mCircles = (CirclesAnimationView) findViewById(R.id.bro_common_speech_titles);
         mCircles.setVisibility(View.GONE);
         mSpotting = false;
+
+        Typeface tf = Typeface.createFromAsset(getAssets(), "fonts/Yandex Sans Text-Regular.otf");
+        mTextView.setTypeface(tf);
 
         Intent intent = getIntent();
         if (intent != null && RecognizerIntent.ACTION_RECOGNIZE_SPEECH.equals(intent.getAction())) {
