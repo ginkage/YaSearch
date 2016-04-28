@@ -213,6 +213,7 @@ public class YaSearchService extends WearableListenerService {
         out.write(("GET " + STREAM_PATH + " HTTP/1.1\r\n" +
                 "User-Agent: " + STREAM_AGENT + "\r\n" +
                 "Host: " + STREAM_HOST + "\r\n" +
+                "Connection: Upgrade\r\n" +
                 "Upgrade: " + STREAM_SERVICE + "\r\n\r\n").getBytes());
         out.flush();
 

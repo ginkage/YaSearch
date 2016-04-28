@@ -25,7 +25,7 @@ public class VoiceRecorder {
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
     private static final int RECORDER_AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT;
     private static final int AUDIO_SOURCE = MediaRecorder.AudioSource.VOICE_RECOGNITION;
-    private static final int RECORDER_BUFFER_SIZE = AudioRecord.getMinBufferSize(
+    private static final int RECORDER_BUFFER_SIZE = 2 * AudioRecord.getMinBufferSize(
             RECORDER_SAMPLE_RATE, RECORDER_CHANNELS, RECORDER_AUDIO_FORMAT);
     private static final int MAX_LEN = 160000;
 
