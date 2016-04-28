@@ -95,12 +95,10 @@ public class StreamingSender implements TCPConnection.Callback {
             byte[] end = "\r\n\r\n".getBytes();
             String message = getHeader(end);
             if (message != null) {
-                // Log.i(TAG, "Got message: " + message);
-
                 if (message.startsWith("HTTP/1.1 101 Switching Protocols")) {
                     onConnectionUpgrade();
                 } else {
-                    onError("Unexpected response", null);
+                    onError("Unexpected response: " + message, null);
                 }
 
                 onDataReceived(null, 0);
@@ -110,19 +108,17 @@ public class StreamingSender implements TCPConnection.Callback {
                 byte[] end = "\r\n".getBytes();
                 String message = getHeader(end);
                 if (message != null) {
-                    // Log.i(TAG, "Got message: " + message);
-
                     if (message.startsWith("HTTP")) {
-                        onError("Bad hanshake reply", null);
+                        onError("Bad handshake reply: " + message, null);
                     } else {
                         try {
                             mExpected = Integer.parseInt(
                                     message.substring(0, message.length() - end.length), 16);
                             if (mExpected <= 0) {
-                                onError("Strange header: " + mExpected, null);
+                                onError("Strange header: " + message, null);
                             }
                         } catch (NumberFormatException e) {
-                            onError("Error parsing message header: " + mExpected, e);
+                            onError("Error parsing message header: " + message, e);
                         }
                     }
 
@@ -157,11 +153,11 @@ public class StreamingSender implements TCPConnection.Callback {
                 mState = STATE_SEND;
                 startSendingData();
             } else {
-                onError("Wrong response code: "
+                onError("Bad response code: "
                         + response.getResponseCode().getNumber(), null);
             }
         } catch (InvalidProtocolBufferException e) {
-            onError("Error parsing protobuf: ", e);
+            onError("Error parsing protobuf", e);
         }
     }
 
@@ -216,11 +212,11 @@ public class StreamingSender implements TCPConnection.Callback {
                     VoiceProxy.ConnectionResponse.ResponseCode.OK) {
                 processDataResponse(response);
             } else {
-                onError("Wrong response code: "
+                onError("Bad response code: "
                         + response.getResponseCode().getNumber(), null);
             }
         } catch (InvalidProtocolBufferException e) {
-            onError("Error parsing protobuf: ", e);
+            onError("Error parsing protobuf", e);
         }
     }
 

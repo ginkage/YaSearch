@@ -48,8 +48,10 @@ public class ProxyVoiceActivity extends VoiceActivity
                 @Override
                 public void onClick(View v) {
                     mMicBackView.setOnClickListener(null);
-                    mVoiceRecorder.stopRecording();
-                    mListening = false;
+                    if (mVoiceRecorder != null) {
+                        mVoiceRecorder.stopRecording();
+                        mListening = false;
+                    }
                 }
             });
         } else {
