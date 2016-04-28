@@ -145,12 +145,9 @@ class TCPConnection {
             Log.d(TAG, "TCPConnection.ReadThread.run()");
 
             try {
-                byte[] data = new byte[BUFFER_SIZE];
-                int totalRead = 0;
-
                 int size;
+                byte[] data = new byte[BUFFER_SIZE];
                 while ((size = mStream.read(data)) != -1) {
-                    totalRead += size;
                     call_onDataReceived(data, size);
                 }
 

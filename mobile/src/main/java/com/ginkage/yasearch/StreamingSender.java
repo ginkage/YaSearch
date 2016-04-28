@@ -76,8 +76,6 @@ public class StreamingSender implements TCPConnection.Callback {
                     "Connection: Upgrade\r\n" +
                     "Upgrade: " + STREAM_SERVICE + "\r\n\r\n").getBytes();
 
-            mExpected = 0;
-
             synchronized (mConnection) {
                 mState = STATE_UPGRADE;
                 mConnection.write(data);
@@ -170,7 +168,7 @@ public class StreamingSender implements TCPConnection.Callback {
         }
     }
 
-    private void sendData(VoiceProxy.AddData addData) throws IOException {
+    private void sendData(VoiceProxy.AddData addData) {
         int size = addData.getSerializedSize();
         byte[] hdr = String.format("%x\r\n", size).getBytes();
         byte[] msg = concat(hdr, hdr.length, addData.toByteArray(), size);
