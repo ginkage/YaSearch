@@ -11,7 +11,6 @@ import com.google.android.gms.common.api.Status;
 import com.google.android.gms.wearable.Channel;
 import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableListenerService;
-import com.google.protobuf.ByteString;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -23,9 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.Socket;
 import java.net.URL;
-import java.util.List;
 import java.util.UUID;
 
 public class YaSearchService extends WearableListenerService {
@@ -35,15 +32,9 @@ public class YaSearchService extends WearableListenerService {
     private static final String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
     private static final String FORMAT = "audio/x-pcm;bit=16;rate=16000";
     private static final String TOPIC = "queries";
-    private static final String LANG = "en-US";
+    private static final String LANG = "en-EN";
     private static final String COMMON_HOST = "asr.yandex.net";
     private static final String COMMON_PATH = "/asr_xml";
-    private static final String STREAM_HOST = "voice-stream.voicetech.yandex.net";
-    private static final String STREAM_PATH = "/asr_partial_checked";
-    private static final String STREAM_SERVICE = "websocket";
-    private static final String STREAM_AGENT = "KeepAliveClient";
-    private static final String STREAM_APP = "YaWear";
-    private static final String STREAM_DEVICE = "Android Wear";
     private static final int BUFFER_SIZE = 5120;
 
     private static final ResultCallback<Status> EMPTY_CALLBACK =
@@ -87,209 +78,6 @@ public class YaSearchService extends WearableListenerService {
 
     private void sendError(GoogleApiClient googleApiClient, String nodeId, String error) {
         sendMessage(googleApiClient, nodeId, "error", error);
-    }
-
-    private String getResponse(String response, InputStream in) throws IOException {
-        while (true) {
-            int c = in.read();
-            if (c < 0) {
-                return response;
-            }
-            response += (char) c;
-            if (response.endsWith("\r\n\r\n")) {
-                return response;
-            }
-        }
-    }
-
-    private ByteString getMessage(InputStream in) throws IOException {
-        String len = "";
-        while (true) {
-            int c = in.read();
-            if (c < 0) {
-                return null;
-            }
-            if (c == '\r') {
-                if (len.startsWith("HTTP")) {
-                    Log.e(TAG, getResponse(len, in));
-                    return null;
-                } else if (in.read() == '\n') {
-                    int size = Integer.parseInt(len, 16);
-                    byte[] message = new byte[size];
-                    int got = in.read(message);
-                    if (got < 0) {
-                        Log.e(TAG, "End of stream was reached");
-                        return null;
-                    }
-                    return ByteString.copyFrom(message, 0, got);
-                } else {
-                    Log.e(TAG, "Unexpected message format: " + len);
-                    return null;
-                }
-            } else {
-                len += (char) c;
-            }
-        }
-    }
-
-    private void sendData(VoiceProxy.AddData addData, OutputStream out) throws IOException {
-        int size = addData.getSerializedSize();
-        out.write(String.format("%x\r\n", size).getBytes());
-        addData.writeTo(out);
-        out.flush();
-    }
-
-    private String readDataResponse(GoogleApiClient googleApiClient, String nodeId, InputStream in)
-            throws IOException {
-        boolean endOfUtt = false;
-        ByteString message = getMessage(in);
-        VoiceProxy.AddDataResponse response = VoiceProxy.AddDataResponse.parseFrom(message);
-        if (response.getResponseCode() != VoiceProxy.ConnectionResponse.ResponseCode.OK) {
-            return null;
-        }
-
-        if (response.hasEndOfUtt()) {
-            endOfUtt = response.getEndOfUtt();
-        }
-        List<VoiceProxy.Result> results = response.getRecognitionList();
-
-        String bestResult = null;
-        float bestConfidence = 0;
-        for (VoiceProxy.Result result : results) {
-            float curConfidence = result.getConfidence();
-            String curResult = "";
-            if (result.hasNormalized()) {
-                curResult = result.getNormalized();
-            } else {
-                List<VoiceProxy.Word> words = result.getWordsList();
-                for (VoiceProxy.Word word : words) {
-                    if (curResult.length() > 0) {
-                        curResult += " ";
-                        curResult += word.getValue();
-                    }
-                }
-            }
-            if (bestResult == null || bestConfidence < curConfidence) {
-                bestResult = curResult;
-                bestConfidence = curConfidence;
-            }
-        }
-
-        if (endOfUtt) {
-            return bestResult;
-        } else if (bestResult != null) {
-            sendPartialResult(googleApiClient, nodeId, bestResult);
-        }
-
-        return null;
-    }
-
-    private String sendStreamingData(GoogleApiClient googleApiClient,
-                                     String nodeId,
-                                     InputStream inputStream,
-                                     InputStream in,
-                                     OutputStream out) throws IOException {
-        int len;
-        byte[] buffer = new byte[BUFFER_SIZE];
-        while ((len = inputStream.read(buffer)) != -1) {
-            sendData(VoiceProxy.AddData.newBuilder()
-                    .setAudioData(ByteString.copyFrom(buffer, 0, len))
-                    .setLastChunk(false)
-                    .build(), out);
-            String response = readDataResponse(googleApiClient, nodeId, in);
-            if (response != null) {
-                Log.i(TAG, "Got response");
-                return response;
-            }
-        }
-
-        sendData(VoiceProxy.AddData.newBuilder()
-                .setLastChunk(true)
-                .build(), out);
-        return readDataResponse(googleApiClient, nodeId, in);
-    }
-
-    private boolean startStreamingMode(InputStream in, OutputStream out) throws IOException {
-        out.write(("GET " + STREAM_PATH + " HTTP/1.1\r\n" +
-                "User-Agent: " + STREAM_AGENT + "\r\n" +
-                "Host: " + STREAM_HOST + "\r\n" +
-                "Connection: Upgrade\r\n" +
-                "Upgrade: " + STREAM_SERVICE + "\r\n\r\n").getBytes());
-        out.flush();
-
-        String reply = getResponse("", in);
-        if (!reply.startsWith("HTTP/1.1 101 Switching Protocols")) {
-            Log.e(TAG, reply);
-            return false;
-        }
-
-        VoiceProxy.ConnectionRequest request = VoiceProxy.ConnectionRequest.newBuilder()
-                .setSpeechkitVersion("")
-                .setServiceName(STREAM_SERVICE)
-                .setUuid(UUID_KEY)
-                .setApiKey(API_KEY)
-                .setApplicationName(STREAM_APP)
-                .setDevice(STREAM_DEVICE)
-                .setCoords("0, 0")
-                .setTopic(TOPIC)
-                .setLang(LANG)
-                .setFormat(FORMAT)
-                .build();
-
-        int size = request.getSerializedSize();
-        out.write(String.format("%x\r\n", size).getBytes());
-        request.writeTo(out);
-        out.flush();
-
-        ByteString message = getMessage(in);
-        if (message == null) {
-            return false;
-        }
-
-        VoiceProxy.ConnectionResponse response = VoiceProxy.ConnectionResponse.parseFrom(message);
-        return (response.getResponseCode() == VoiceProxy.ConnectionResponse.ResponseCode.OK);
-    }
-
-    private boolean tryStreamingMode(GoogleApiClient googleApiClient,
-                                     String nodeId,
-                                     InputStream inputStream) {
-        Socket socket = null;
-        boolean result = false;
-
-        try {
-            socket = new Socket(STREAM_HOST, 80);
-            InputStream in = new BufferedInputStream(socket.getInputStream());
-            OutputStream out = new BufferedOutputStream(socket.getOutputStream());
-
-            if (startStreamingMode(in, out)) {
-                // We can't go back once we start reading data from inputStream.
-                result = true;
-
-                sendChannelReady(googleApiClient, nodeId);
-
-                Log.i(TAG, "Send data from mic, streaming mode");
-                String message = sendStreamingData(googleApiClient, nodeId, inputStream, in, out);
-
-                Log.i(TAG, "Send result");
-                if (message == null) {
-                    sendError(googleApiClient, nodeId, "Sorry, didn't catch that");
-                } else {
-                    sendFinalResult(googleApiClient, nodeId, message);
-                }
-            }
-        } catch (IOException e) {
-            Log.i(TAG, "Streaming mode failed", e);
-        }
-
-        if (socket != null) {
-            try {
-                socket.close();
-            } catch (IOException e) {
-                Log.i(TAG, "Streaming mode failed", e);
-            }
-        }
-
-        return result;
     }
 
     private String processXMLResult(InputStream in) throws IOException, XmlPullParserException {
@@ -409,15 +197,29 @@ public class YaSearchService extends WearableListenerService {
             final GoogleApiClient googleApiClient,
             final String nodeId,
             final InputStream inputStream) {
-        new Thread(new Runnable() {
+        new StreamingSender(inputStream, new StreamingSender.Callback() {
             @Override
-            public void run() {
-                if (!tryStreamingMode(googleApiClient, nodeId, inputStream)) {
-                    if (!tryCommonMode(googleApiClient, nodeId, inputStream)) {
-                        Log.i(TAG, "Sent an error");
-                        sendError(googleApiClient, nodeId, "Error: Couldn't connect to server");
-                    }
+            public void onChannelReady() {
+                sendChannelReady(googleApiClient, nodeId);
+            }
+
+            @Override
+            public void onResult(String result, boolean partial) {
+                if (partial) {
+                    sendPartialResult(googleApiClient, nodeId, result);
+                } else {
+                    sendFinalResult(googleApiClient, nodeId,
+                            (result != null) ? result : "Sorry, didn't catch that");
+
+                    Log.i(TAG, "Closing the channel");
+                    channel.close(googleApiClient).setResultCallback(EMPTY_CALLBACK);
+                    googleApiClient.disconnect();
                 }
+            }
+
+            @Override
+            public void onError(String message) {
+                sendError(googleApiClient, nodeId, message);
 
                 Log.i(TAG, "Closing the channel");
                 channel.close(googleApiClient).setResultCallback(EMPTY_CALLBACK);

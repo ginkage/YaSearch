@@ -1,6 +1,9 @@
 package com.ginkage.yasearch;
 
 import android.util.Log;
+
+import com.ginkage.yasearch.TCPSocketFactory.SocketType;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,7 +14,6 @@ import java.util.LinkedList;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import com.ginkage.yasearch.TCPSocketFactory.SocketType;
 
 class TCPConnection {
 
@@ -41,22 +43,18 @@ class TCPConnection {
     }
 
     private void call_onConnectionEstablished() {
-        Log.d(TAG, "TCPConnection.onConnectionEstablished()");
         mCallback.onConnectionEstablished();
     }
 
     private void call_onDataReceived(byte[] data, int size) {
-        Log.d(TAG, "TCPConnection.onDataReceived()");
         mCallback.onDataReceived(data, size);
     }
 
     private void call_onDataSent(long size) {
-        Log.d(TAG, "TCPConnection.onDataSent()");
         mCallback.onDataSent(size);
     }
 
     private void call_onNetworkConnectionError(Exception e, int code) {
-        Log.d(TAG, "TCPConnection.onNetworkConnectionError()");
         mCallback.onNetworkConnectionError(e, code);
     }
 
@@ -69,7 +67,7 @@ class TCPConnection {
     }
 
     public void open() {
-        (new Thread() {
+        (new Thread("TCPConnection.MainThread") {
             public void run() {
                 try {
                     mSocket = TCPSocketFactory.createSocket(
@@ -123,9 +121,9 @@ class TCPConnection {
         }
     }
 
-    public void write(byte[] data, long size) {
+    public void write(byte[] data) {
         synchronized (mWriteList) {
-            mWriteList.addLast(new Packet(data, size));
+            mWriteList.addLast(new Packet(data, data.length));
             mLock.lock();
             try {
                 mHaveData.signal();
@@ -139,6 +137,7 @@ class TCPConnection {
         private final InputStream mStream;
 
         public ReadThread(InputStream stream) {
+            super("TCPConnection.ReadThread");
             mStream = stream;
         }
 
@@ -175,6 +174,7 @@ class TCPConnection {
         private OutputStream mStream;
 
         public WriteThread(OutputStream stream) {
+            super("TCPConnection.WriteThread");
             mStream = stream;
         }
 
@@ -226,9 +226,9 @@ class TCPConnection {
 
     class Packet {
         private final byte[] mData;
-        private final Long mSize;
+        private final Integer mSize;
 
-        public Packet(byte[] data, long size) {
+        public Packet(byte[] data, int size) {
             mData = data;
             mSize = size;
         }
@@ -237,7 +237,7 @@ class TCPConnection {
             return mData;
         }
 
-        public long getSize() {
+        public int getSize() {
             return mSize;
         }
 
