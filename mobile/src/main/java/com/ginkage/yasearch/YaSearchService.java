@@ -5,6 +5,7 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.Releasable;
 import com.google.android.gms.common.api.Result;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
@@ -18,22 +19,16 @@ public class YaSearchService extends WearableListenerService {
 
     private static final String TAG = "YaSearchService";
 
-    private static final ResultCallback<Status> EMPTY_CALLBACK =
-            new ResultCallback<Status>() {
-                @Override
-                public void onResult(@NonNull Status result) {
-                    if (!result.getStatus().isSuccess()) {
-                        Log.e(TAG, "Failed: " + result.getStatusMessage());
-                    }
-                }
-            };
-
-    private static final ResultCallback<Result> MESSAGE_CALLBACK =
+    private static final ResultCallback<Result> EMPTY_CALLBACK =
             new ResultCallback<Result>() {
                 @Override
                 public void onResult(@NonNull Result result) {
-                    if (!result.getStatus().isSuccess()) {
-                        Log.e(TAG, "Failed: " + result.getStatus());
+                    Status status = result.getStatus();
+                    if (!status.isSuccess()) {
+                        Log.e(TAG, "Failed: " + status.getStatusMessage());
+                    }
+                    if (result instanceof Releasable) {
+                        ((Releasable) result).release();
                     }
                 }
             };
@@ -42,7 +37,7 @@ public class YaSearchService extends WearableListenerService {
                              String path, String message) {
         Wearable.MessageApi.sendMessage(googleApiClient, nodeId, "/yask/" + path,
                 (message == null ? null : message.getBytes()))
-                .setResultCallback(MESSAGE_CALLBACK);
+                .setResultCallback(EMPTY_CALLBACK);
     }
 
     private void sendChannelReady(GoogleApiClient googleApiClient, String nodeId) {
