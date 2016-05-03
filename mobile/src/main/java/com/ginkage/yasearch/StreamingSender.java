@@ -8,17 +8,10 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.UUID;
 
-public class StreamingSender implements TCPConnection.Callback {
+public class StreamingSender implements DataSender, TCPConnection.Callback {
 
     private static final String TAG = "StreamingSender";
-
-    public interface Callback {
-        void onChannelReady();
-        void onResult(String result, boolean partial);
-        void onError(String message);
-    }
 
     private static final int STATE_ERROR = -1;
     private static final int STATE_START = 1;
@@ -29,11 +22,6 @@ public class StreamingSender implements TCPConnection.Callback {
     private static final int STATE_DONE = 6;
     private static final int STATE_CLOSE = 7;
 
-    private static final String UUID_KEY = UUID.randomUUID().toString().replaceAll("-", "");
-    private static final String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
-    private static final String FORMAT = "audio/x-pcm;bit=16;rate=16000";
-    private static final String TOPIC = "queries";
-    private static final String LANG = "en-EN";
     private static final String STREAM_HOST = "voice-stream.voicetech.yandex.net";
     private static final String STREAM_PATH = "/asr_partial_checked";
     private static final String STREAM_SERVICE = "websocket";
@@ -182,13 +170,13 @@ public class StreamingSender implements TCPConnection.Callback {
 
     private void startSendingData() {
         mCallback.onChannelReady();
-        (new Thread() {
+        (new Thread("StreamingSender") {
             @Override
             public void run() {
                 try {
                     Log.i(TAG, "Start sending data");
                     int len;
-                    byte[] buffer = new byte[5120];
+                    byte[] buffer = new byte[BUFFER_SIZE];
                     while ((len = mInputStream.read(buffer)) != -1) {
                         sendData(VoiceProxy.AddData.newBuilder()
                                 .setAudioData(ByteString.copyFrom(buffer, 0, len))

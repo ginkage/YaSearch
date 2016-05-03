@@ -12,30 +12,11 @@ import com.google.android.gms.wearable.Channel;
 import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableListenerService;
 
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
-import org.xmlpull.v1.XmlPullParserFactory;
-
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.UUID;
 
 public class YaSearchService extends WearableListenerService {
 
     private static final String TAG = "YaSearchService";
-    private static final String UUID_KEY = UUID.randomUUID().toString().replaceAll("-", "");
-    private static final String API_KEY = "a003a72e-e08a-4176-89a6-f46c77c8b2ea";
-    private static final String FORMAT = "audio/x-pcm;bit=16;rate=16000";
-    private static final String TOPIC = "queries";
-    private static final String LANG = "en-EN";
-    private static final String COMMON_HOST = "asr.yandex.net";
-    private static final String COMMON_PATH = "/asr_xml";
-    private static final int BUFFER_SIZE = 5120;
 
     private static final ResultCallback<Status> EMPTY_CALLBACK =
             new ResultCallback<Status>() {
@@ -80,124 +61,12 @@ public class YaSearchService extends WearableListenerService {
         sendMessage(googleApiClient, nodeId, "error", error);
     }
 
-    private String processXMLResult(InputStream in) throws IOException, XmlPullParserException {
-        XmlPullParserFactory xmlFactoryObject = XmlPullParserFactory.newInstance();
-        XmlPullParser myParser = xmlFactoryObject.newPullParser();
-        myParser.setInput(in, null);
-
-        int event = myParser.getEventType();
-        boolean variant = false;
-        String bestVariant = null;
-        String curVariant = null;
-        double bestConfidence = 0;
-        double curConfidence = 0;
-
-        while (event != XmlPullParser.END_DOCUMENT) {
-            String name = myParser.getName();
-            switch (event){
-                case XmlPullParser.START_TAG:
-                    if (name.equals("variant")) {
-                        variant = true;
-                        curVariant = null;
-                        curConfidence = -2;
-                        String confidence = myParser.getAttributeValue(null, "confidence");
-                        if (confidence != null) {
-                            curConfidence = Double.parseDouble(confidence);
-                        }
-                    } else if (name.equals("recognitionResults")) {
-                        String success = myParser.getAttributeValue(null, "success");
-                        if (Integer.parseInt(success) == 0) {
-                            return null;
-                        }
-                    }
-                    break;
-
-                case XmlPullParser.TEXT:
-                    if (variant) {
-                        curVariant = myParser.getText();
-                    }
-                    break;
-
-                case XmlPullParser.END_TAG:
-                    if (name.equals("variant")) {
-                        variant = false;
-                        Log.i(TAG, "confidence: " + curConfidence + " : " + curVariant);
-                        if (curVariant != null) {
-                            if (bestVariant == null || curConfidence > bestConfidence) {
-                                bestVariant = curVariant;
-                                bestConfidence = curConfidence;
-                            }
-                        }
-                    }
-                    break;
-            }
-            event = myParser.next();
-        }
-
-        return bestVariant;
-    }
-
-    private void sendCommonData(InputStream inputStream, OutputStream out)
-            throws IOException, XmlPullParserException {
-        int len;
-        byte[] buffer = new byte[BUFFER_SIZE];
-        while ((len = inputStream.read(buffer)) != -1) {
-            out.write(buffer, 0, len);
-        }
-    }
-
-    private boolean tryCommonMode(GoogleApiClient googleApiClient,
-                                  String nodeId,
-                                  InputStream inputStream) {
-        HttpURLConnection urlConnection = null;
-        boolean result = false;
-
-        try {
-            URL url = new URL("http://" + COMMON_HOST + COMMON_PATH +
-                    "?uuid=" + UUID_KEY + "&key=" + API_KEY + "&topic=" + TOPIC + "&lang=" + LANG);
-            urlConnection = (HttpURLConnection) url.openConnection();
-            urlConnection.setDoOutput(true);
-            urlConnection.setRequestMethod("POST");
-            urlConnection.setRequestProperty("Content-Type", FORMAT);
-            urlConnection.setChunkedStreamingMode(BUFFER_SIZE);
-
-            InputStream in = new BufferedInputStream(urlConnection.getInputStream());
-            OutputStream out = new BufferedOutputStream(urlConnection.getOutputStream());
-
-            // We can't go back once we start reading data from inputStream.
-            result = true;
-
-            sendChannelReady(googleApiClient, nodeId);
-
-            Log.i(TAG, "Send data from mic, common mode");
-            sendCommonData(inputStream, out);
-
-            Log.i(TAG, "Read response");
-            String response = processXMLResult(in);
-
-            Log.i(TAG, "Send result");
-            if (response == null) {
-                sendError(googleApiClient, nodeId, "Sorry, didn't catch that");
-            } else {
-                sendFinalResult(googleApiClient, nodeId, response);
-            }
-        } catch (IOException | XmlPullParserException e) {
-            Log.i(TAG, "Common mode failed", e);
-        }
-
-        if (urlConnection != null) {
-            urlConnection.disconnect();
-        }
-
-        return result;
-    }
-
     private void receiveData(
             final Channel channel,
             final GoogleApiClient googleApiClient,
             final String nodeId,
             final InputStream inputStream) {
-        new StreamingSender(inputStream, new StreamingSender.Callback() {
+        new StreamingSender(inputStream, new DataSender.Callback() {
             @Override
             public void onChannelReady() {
                 sendChannelReady(googleApiClient, nodeId);
@@ -249,7 +118,7 @@ public class YaSearchService extends WearableListenerService {
                                     if (result.getStatus().isSuccess()) {
                                         Log.i(TAG, "Got an input stream");
                                         receiveData(channel, googleApiClient, nodeId,
-                                                new BufferedInputStream(result.getInputStream()));
+                                                result.getInputStream());
                                     } else {
                                         Log.e(TAG, "Failed to get input stream");
                                         channel.close(googleApiClient)

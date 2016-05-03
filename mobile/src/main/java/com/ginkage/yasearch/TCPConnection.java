@@ -42,22 +42,6 @@ class TCPConnection {
         void onNetworkConnectionError(Exception e, int code);
     }
 
-    private void call_onConnectionEstablished() {
-        mCallback.onConnectionEstablished();
-    }
-
-    private void call_onDataReceived(byte[] data, int size) {
-        mCallback.onDataReceived(data, size);
-    }
-
-    private void call_onDataSent(long size) {
-        mCallback.onDataSent(size);
-    }
-
-    private void call_onNetworkConnectionError(Exception e, int code) {
-        mCallback.onNetworkConnectionError(e, code);
-    }
-
     public TCPConnection(String host, int port, boolean ssl, Callback callback) {
         mHaveData = mLock.newCondition();
         mPort = port;
@@ -78,10 +62,10 @@ class TCPConnection {
                     mWriteThread.start();
                 } catch (IOException e) {
                     Log.d(TAG, "Socket opening error", e);
-                    call_onNetworkConnectionError(e, ErrUnknown);
+                    mCallback.onNetworkConnectionError(e, ErrUnknown);
                     close();
                 } catch (Exception e) {
-                    call_onNetworkConnectionError(e, ErrUnknown);
+                    mCallback.onNetworkConnectionError(e, ErrUnknown);
                     close();
                 }
             }
@@ -101,7 +85,7 @@ class TCPConnection {
                     }
                     mHaveData.signal();
                 } catch (IOException e) {
-                    call_onNetworkConnectionError(e, ErrUnknown);
+                    mCallback.onNetworkConnectionError(e, ErrUnknown);
                 }
                 mLock.unlock();
             }
@@ -148,18 +132,18 @@ class TCPConnection {
                 int size;
                 byte[] data = new byte[BUFFER_SIZE];
                 while ((size = mStream.read(data)) != -1) {
-                    call_onDataReceived(data, size);
+                    mCallback.onDataReceived(data, size);
                 }
 
                 Log.d(TAG, "TCPConnection.ReadThread.run(): EOF");
-                call_onNetworkConnectionError(null, ErrEof);
+                mCallback.onNetworkConnectionError(null, ErrEof);
             } catch (SocketException e) {
                 if (!mDoNotBeAfraid) {
-                    call_onNetworkConnectionError(e, ErrUnknown);
+                    mCallback.onNetworkConnectionError(e, ErrUnknown);
                     close();
                 }
             } catch (IOException e) {
-                call_onNetworkConnectionError(e, ErrUnknown);
+                mCallback.onNetworkConnectionError(e, ErrUnknown);
                 close();
             }
 
@@ -177,7 +161,7 @@ class TCPConnection {
 
         public void run() {
             Log.d(TAG, "TCPConnection.WriteThread.run()");
-            call_onConnectionEstablished();
+            mCallback.onConnectionEstablished();
 
             try {
                 while (true) {
@@ -192,7 +176,7 @@ class TCPConnection {
                             }
 
                             mStream.write(data.getData());
-                            call_onDataSent(data.getSize());
+                            mCallback.onDataSent(data.getSize());
                         }
 
                         if (mNeedToStop) {
@@ -209,11 +193,11 @@ class TCPConnection {
                 }
             } catch (SocketException e) {
                 if (!mDoNotBeAfraid) {
-                    call_onNetworkConnectionError(e, ErrUnknown);
+                    mCallback.onNetworkConnectionError(e, ErrUnknown);
                     close();
                 }
             } catch (IOException e) {
-                call_onNetworkConnectionError(e, ErrUnknown);
+                mCallback.onNetworkConnectionError(e, ErrUnknown);
                 close();
             }
 
