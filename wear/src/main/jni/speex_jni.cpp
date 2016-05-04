@@ -17,9 +17,9 @@ static int currentFrame;
 
 int write_page(char *buffer, int offset) {
     ogg_stream_flush(&oggState, &oggPage);
-    memcpy(buffer + offset, oggState.header, oggState.header_fill);
+    memcpy(buffer + offset, oggPage.header, oggPage.header_len);
     offset += oggPage.header_len;
-    memcpy(buffer + offset, oggState.body_data, oggState.body_fill);
+    memcpy(buffer + offset, oggPage.body, oggPage.body_len);
     offset += oggPage.body_len;
     return offset;
 }
