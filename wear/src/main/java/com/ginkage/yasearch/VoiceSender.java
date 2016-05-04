@@ -132,6 +132,10 @@ public class VoiceSender {
     }
 
     private void updateYaskCapability(CapabilityInfo capabilityInfo) {
+        if (mOutputChannel != null) {
+            return;
+        }
+
         closeChannel();
         Set<Node> connectedNodes = capabilityInfo.getNodes();
         String nodeId = pickBestNodeId(connectedNodes);
@@ -177,7 +181,7 @@ public class VoiceSender {
                     @Override
                     public void onResult(@NonNull Channel.GetOutputStreamResult result) {
                         if (result.getStatus().isSuccess()) {
-                            mDataStream = new BufferedOutputStream(result.getOutputStream());
+                            mDataStream = result.getOutputStream();
                         } else {
                             mListener.onChannelReady(null, "Failed to get output stream");
                         }

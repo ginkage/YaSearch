@@ -31,7 +31,6 @@ public class VoiceRecorder {
 
     private AudioRecord recorder = null;
     private boolean isRecording = false;
-    private NoiseSuppressor noiseSuppressor = null;
 
     public void startRecording(
             final OutputStream stream, final RecordingListener recordingListener) {
@@ -41,19 +40,7 @@ public class VoiceRecorder {
                 RECORDER_SAMPLE_RATE,
                 RECORDER_CHANNELS,
                 RECORDER_AUDIO_FORMAT,
-                RECORDER_BUFFER_SIZE);
-        try {
-            noiseSuppressor = NoiseSuppressor.create(recorder.getAudioSessionId());
-            if (noiseSuppressor.setEnabled(true) != AudioEffect.SUCCESS)  {
-                noiseSuppressor.release();
-                noiseSuppressor = null;
-            } else {
-                Log.d(TAG, "Using noise suppression: " + noiseSuppressor.getDescriptor().uuid);
-            }
-        } catch (Exception e) {
-            // setEnabled() can throw random IllegalStateExceptions.
-            noiseSuppressor = null;
-        }
+                RECORDER_BUFFER_SIZE * 2);
 
         isRecording = true;
         recorder.startRecording();
@@ -65,14 +52,18 @@ public class VoiceRecorder {
             public void run() {
                 try {
                     int bytesRead = 0;
-                    byte[] dataBuffer = new byte[RECORDER_BUFFER_SIZE];
+                    short[] dataBuffer = new short[RECORDER_BUFFER_SIZE];
+                    byte[] outBuffer = new byte[RECORDER_BUFFER_SIZE * 2];
+                    int len = Speex.open(Speex.WIDE_BAND, 8, outBuffer);
+                    stream.write(outBuffer, 0, len);
                     while (isRecording) {
                         int read = recorder.read(dataBuffer, 0, RECORDER_BUFFER_SIZE);
                         if (read > 0) {
-                            stream.write(dataBuffer, 0, read);
+                            len = Speex.encode(dataBuffer, outBuffer);
+                            stream.write(outBuffer, 0, len); //(dataBuffer, 0, read);
                             bytesRead += read;
                         }
-                        if (bytesRead > MAX_LEN) {
+                        if (bytesRead >= MAX_LEN) {
                             Log.d(TAG, "buffer size limit " + bytesRead + " reached.");
                             stopRecording();
                         }
@@ -86,6 +77,7 @@ public class VoiceRecorder {
                     Log.e(TAG, "Stream suddenly closed", e);
                     recordingListener.onError();
                 }
+                Speex.close();
 
                 recordingListener.onStreamClosed();
             }
@@ -100,10 +92,6 @@ public class VoiceRecorder {
                 recorder.stop();
             } catch (Throwable t) {
                 Log.e(TAG, "Failed to stop recorder", t);
-            }
-            if (noiseSuppressor != null) {
-                noiseSuppressor.release();
-                noiseSuppressor = null;
             }
             try {
                 recorder.release();

@@ -10,6 +10,11 @@ android {
         targetSdkVersion 23
         versionCode 1
         versionName "1.0"
+
+        ndk {
+            moduleName "speex"
+            cFlags "-I${project.buildDir}/../src/main/jni/include -DFIXED_POINT -DUSE_KISS_FFT -DEXPORT=\"\" -UHAVE_CONFIG_H"
+        }
     }
     buildTypes {
         release {
@@ -17,6 +22,12 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    //sourceSets {
+    //    main {
+    //       jni.srcDirs = []
+    //        jniLibs.srcDirs = ["libs"]
+    //    }
+    //}
 }
 
 dependencies {
