@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Yandex SpeechKit</string>
-    <string name="proxy_title">Yandex SpeechKit</string>
-    <string name="standalone_title">YaSK Standalone</string>
+    <string name="proxy_title">YaSK Cloud</string>
+    <string name="standalone_title">YaSK Mobile SDK</string>
     <string name="bro_common_speech_dialog_cancel_button">Cancel</string>
     <string name="bro_common_speech_dialog_hint">Ready</string>
     <string name="bro_common_speech_dialog_network">You must be connected to the internet to use the voice recognition feature</string>

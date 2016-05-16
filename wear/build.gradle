@@ -6,7 +6,7 @@ android {
 
     defaultConfig {
         applicationId "com.ginkage.yasearch"
-        minSdkVersion 21
+        minSdkVersion 23
         targetSdkVersion 23
         versionCode 1
         versionName "1.0"
@@ -22,12 +22,6 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
-    //sourceSets {
-    //    main {
-    //       jni.srcDirs = []
-    //        jniLibs.srcDirs = ["libs"]
-    //    }
-    //}
 }
 
 dependencies {

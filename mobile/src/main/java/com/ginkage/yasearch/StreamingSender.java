@@ -5,7 +5,6 @@ import android.util.Log;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -38,7 +37,6 @@ public class StreamingSender implements DataSender, TCPConnection.Callback {
     private final TCPConnection mConnection;
     private InputStream mInputStream;
     private Callback mCallback;
-    private FileOutputStream mDump;
 
     public StreamingSender(InputStream inputStream, Callback callback) {
         mBuffer = null;

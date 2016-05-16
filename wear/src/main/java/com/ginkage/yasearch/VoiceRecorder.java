@@ -3,17 +3,13 @@ package com.ginkage.yasearch;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
-import android.media.audiofx.AudioEffect;
-import android.media.audiofx.NoiseSuppressor;
 import android.util.Log;
 
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- * The voice recording class. For example purposes only, don't look at it.
- */
 public class VoiceRecorder {
+
     public interface RecordingListener {
         void onFinishRecord();
         void onError();
@@ -101,4 +97,5 @@ public class VoiceRecorder {
             recorder = null;
         }
     }
+
 }

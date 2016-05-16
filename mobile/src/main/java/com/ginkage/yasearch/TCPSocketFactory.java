@@ -11,6 +11,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 class TCPSocketFactory {
+
     TCPSocketFactory() {
     }
 
@@ -51,4 +52,5 @@ class TCPSocketFactory {
         PLAIN_SOCKET,
         SSL_SOCKET
     }
+
 }

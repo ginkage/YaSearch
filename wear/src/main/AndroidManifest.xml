@@ -36,14 +36,10 @@
         <activity
             android:name=".StandaloneVoiceActivity"
             android:label="@string/standalone_title">
-            <!-- <intent-filter>
+            <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <intent-filter>
-                <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter> -->
         </activity>
     </application>
 
